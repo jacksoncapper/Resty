@@ -1,13 +1,5 @@
 <?php
-	/*
-	Copyright © 2014 - Jackson Capper
-	https://github.com/jacksoncapper
-	
-	Permission is granted to any person obtaining a copy of this software including the rights to
-	use, copy, and modify subject to that this license is included in all copies or substantial
-	portions of the software. This software is provided without warranty of any kind. The author or
-	copyright holder cannot be liable for any damages arising from the use of this software.
-	*/
+	/* Resty 1.0.0 ~ Copyright © 2014 Jackson Capper ~ https://github.com/jacksoncapper */
 
 	function getOwnership($schema, $id){
 		if(!property_exists($GLOBALS["resty"], "users"))
