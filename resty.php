@@ -1,6 +1,4 @@
 <?php
-	/* Resty 1.0.0 ~ Copyright © 2014 Jackson Capper ~ https://github.com/jacksoncapper */
-
 	function getOwnership($schema, $id){
 		if(!property_exists($GLOBALS["resty"], "users"))
 			return;
