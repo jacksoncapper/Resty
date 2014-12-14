@@ -1,4 +1,4 @@
-<h1>Resty</h1>
+<h1>Resty 1.0.0</h1>
 <p>Publish a complete REST API from any MySQL database with authentication, security, and virtual tables built-in.</p>
 
 <h3>License</h3>
