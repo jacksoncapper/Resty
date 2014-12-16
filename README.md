@@ -34,7 +34,7 @@
 <h5>4. Check Field's Get/Set Policy</h5>
 <p>If the action is a <code>GET</code> or <code>POST</code>/<code>PUT</code>, the <em>get policy</em> or <em>set policy</em> is checked respectively to determine if each field can be get or set. This can be specified in the field's meta:</p>
 <pre>{"get": ["private", "super"], "set": ["private"]}
-  // Both the owner and super-users of the resource can get this field
+  // Both the owner and super-users of the owner can get this field
   // Only the owner can set this field</pre>
 <p>Where a user isn't permitted to get or set a field, that field is skipped. All other fields will be processed independantly.</p>
   
