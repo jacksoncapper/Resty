@@ -290,20 +290,20 @@
 			// Security: Get Relationship
 			$ownership = getOwnership($schema, $id);
 		
-			// Security: Check Resource Browse Policy
-			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "browse"))
-				$browsePolicy = call_user_func($GLOBALS["resty"]->{$subject}->browseSecurity, $id, $options, $ownership);
-			else if(property_exists($schema->meta, "browse"))
-				$browsePolicy = $schema->meta->browse;
-			if(isset($browsePolicy) && !in_array($ownership, $browsePolicy))
+			// Security: Check Resource Access Policy
+			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
+				$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $ownership);
+			else if(property_exists($schema->meta, "access"))
+				$accessPolicy = $schema->meta->access;
+			if(isset($accessPolicy) && !in_array($ownership, $accessPolicy))
 				return null;
 			
-			// Security: Check Resource Update Policy
-			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "updateSecurity"))
-				$updatePolicy = call_user_func($GLOBALS["resty"]->{$subject}->updateSecurity, $id, new stdClass(), $ownership);
-			else if(property_exists($schema->meta, "update"))
-				$updatePolicy = $schema->meta->update;
-			if(isset($updatePolicy) && !in_array($ownership, $updatePolicy))
+			// Security: Check Resource Affect Policy
+			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy"))
+				$affectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $ownership);
+			else if(property_exists($schema->meta, "affect"))
+				$affectPolicy = $schema->meta->affect;
+			if(isset($affectPolicy) && !in_array($ownership, $affectPolicy))
 				return null;
 		}
 
@@ -446,12 +446,12 @@
 		if(property_exists($options, "own") && $options->own == "true")
 			$item->ownership = $ownership !== null ? $ownership : null;
 
-		// Security: Check Resource Browse Policy
-		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "browseSecurity"))
-			$browsePolicy = call_user_func($GLOBALS["resty"]->{$subject}->browseSecurity, $id, $options, $ownership);
-		else if(property_exists($schema->meta, "browse"))
-			$browsePolicy = $schema->meta->browse;
-		if(isset($browsePolicy) && !in_array($ownership, $browsePolicy))
+		// Security: Check Resource Access Policy
+		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
+			$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $ownership);
+		else if(property_exists($schema->meta, "access"))
+			$accessPolicy = $schema->meta->access;
+		if(isset($accessPolicy) && !in_array($ownership, $accessPolicy))
 			return null;
 		
 		// Get
@@ -548,20 +548,20 @@
 		if(property_exists($options, "own") && $options->own == "true")
 			$item->ownership = $ownership !== null ? $ownership : null;
 			
-		// Security: Check Resource Browse Policy
-		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "browseSecurity"))
-			$browsePolicy = call_user_func($GLOBALS["resty"]->{$subject}->browseSecurity, $id, $options, $ownership);
-		else if(property_exists($schema->meta, "browse"))
-			$browsePolicy = $schema->meta->browse;
-		if(isset($browsePolicy) && !in_array($ownership, $browsePolicy))
+		// Security: Check Resource Access Policy
+		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
+			$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $ownership);
+		else if(property_exists($schema->meta, "access"))
+			$accessPolicy = $schema->meta->access;
+		if(isset($accessPolicy) && !in_array($ownership, $accessPolicy))
 			return null;
 	
-		// Security: Check Resource Update Policy
-		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "updateSecurity"))
-			$updatePolicy = call_user_func($GLOBALS["resty"]->{$subject}->updateSecurity, $id, new stdClass(), $ownership);
-		else if(property_exists($schema->meta, "update"))
-			$updatePolicy = $schema->meta->update;
-		if(isset($updatePolicy) && !in_array($ownership, $updatePolicy))
+		// Security: Check Resource Affect Policy
+		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy"))
+			$affectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $ownership);
+		else if(property_exists($schema->meta, "affect"))
+			$affectPolicy = $schema->meta->affect;
+		if(isset($affectPolicy) && !in_array($ownership, $affectPolicy))
 			return null;
 		
 		// Delete
