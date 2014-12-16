@@ -5,7 +5,7 @@
 <p>Resty uses the concept of <em>ownership</em> to deny/accept read/write actions on resources and properties. Each action request goes through the following steps:</p>
 
 <h5>1. Get Relationship</h5>
-<p>Every resource can be owned by a user. Ownership is designated by a foreign key reference in that resource that links to a user directly, or to a resource that is owned by a user. The foreign key field that indicates ownership must be explicitly written in the subject's meta comments:</p>
+<p>Ownership of each resource is designated by a foreign key reference that links to a user directly, or to a resource that is owned by a user. The foreign key field that indicates ownership can be specified in the subject's meta:</p>
 <pre>{"owner": "user"}</pre>
 <p>Before a resource is written, read, or deleted, the relationship between the current user and the resource is determined. This can result in 5 possible relationships:</p>
 <ul>
@@ -16,30 +16,30 @@
   <li><strong>Semi</strong> - The resource is owned by a semiuser of the current user</li>
 </ul>
 
-<h5>2. Check Resource Access Policy</h5>
-<p>The user relationship is compared to the subject's <em>browse security policy</em>. A security policy is simply an array of allowable ownership relationships that can access the resource exists. This can be set in the subject's meta comments:</p>
-<pre>{"browse": ["private", "subprotected"]}
-  // Both the owner and subusers of the owner can access these resources</pre>
+<h5>2. Check Resource's Access Policy</h5>
+<p>The user relationship is compared to the subject's <em>access policy</em>. A policy is simply an array of allowable relationships that can access the resource. This can be specified in the subject's meta:</p>
+<pre>{"browse": ["private", "sub"]}
+  // Both the owner and sub-users of the owner can access these resources</pre>
 <p>Resty will deal with attempted access to inaccessible resources depending on the action:</p>
 <ul>
   <li><strong><code>GET (BROWSE)</code></strong> - Resource is simply omitted</li>
   <li><strong><code>GET, POST, PUT, DELETE</code></strong> - 404 Not Found Error</li>
 </ul>
 
-<h5>3. Check Resource Affect Policy</h5>
-<p>If the action is a <code>PUT</code>, <code>POST</code>, <code>DELETE</code> request, the user relationship is compared to the subject's <em>update security policy</em>. This can be set in the subject's meta comments:</p>
-<pre>{"update": ["private", "semiprotected"]}
-  // Both the owner and semiusers of the owner can update this resource</pre>
+<h5>3. Check Resource's Affect Policy</h5>
+<p>If the action is a <code>PUT</code>, <code>POST</code>/<code>PUT</code>, or <code>DELETE</code> request, the relationship is compared to the subject's <em>affect policy</em>. This can be specified in the subject's meta:</p>
+<pre>{"update": ["private", "semi"]}
+  // Both the owner and semi-users of the owner can affect this resource</pre>
   
-<h5>4. Check Field Get/Set Policy</h5>
-<p>If the action is a <code>GET</code> or <code>PUT</code>/<code>POST</code>, the <em>get policy</em> or <em>set policy</em> is checked respectively to determine if each field can be get or set. This can be set in the field's meta comments:</p>
-<pre>{"get": ["private", "superprotected"], "set": ["private"]}
-  // Both the owner and superusers of the resource can get this field
+<h5>4. Check Field's Get/Set Policy</h5>
+<p>If the action is a <code>GET</code> or <code>POST</code>/<code>PUT</code>, the <em>get policy</em> or <em>set policy</em> is checked respectively to determine if each field can be get or set. This can be specified in the field's meta:</p>
+<pre>{"get": ["private", "super"], "set": ["private"]}
+  // Both the owner and super-users of the resource can get this field
   // Only the owner can set this field</pre>
 <p>Where a user isn't permitted to get or set a field, that field is skipped. All other fields will be processed independantly.</p>
   
-<h5>5. Check Field Set-Reference Policy</h5>
-<p>If the action is a <code>PUT</code>/<code>POST</code>, and a field is being set to a reference, the reference resource is considered to be being updated. Therefore, the referenced resource's browse and update policies are compared the user's relationship as if that resource were being applied.</p>
+<h5>5. Check Field's Set-Reference Policy</h5>
+<p>If the action is a <code>PUT</code>/<code>POST</code>, and a field is being set to a reference, the reference resource is considered to be being affected. Therefore, the referenced resource's access and affect policies are compared to the relationship as if that resource were being applied.</p>
 <p>Where the user isn't permitted to set a field to a referenced resource, that field is skipped. All other fields will be process independantly.</p>
 
 <h3>License</h3>
