@@ -1,27 +1,19 @@
 <h1>Resty 1.0.1</h1>
 <p>Publish a complete REST API from any MySQL database with authentication, security, and virtual tables built-in.</p>
 
-<h3>To-do</h3>
-<ul>
-  <li>Update new security terminology (access/affect)</li>
-  <li>Conventional resource access/affect security</li>
-  <li>Conventional field get/set security</li>
-  <li>Normalised schema security</li>
-</ul>
-
 <h3>Security Model</h3>
 <p>Resty uses the concept of <em>ownership</em> to deny/accept read/write actions on resources and properties. Each action request goes through the following steps:</p>
 
 <h5>1. Get Relationship</h5>
-<p>Every resource can be <em>owned</em> by a user. Ownership is designated by a foreign key reference in that resource that links to a user directly, or to a resource that is owned by a user. A foreign key field that indicates ownership must be explicitly written in the field's meta comments:</p>
-<pre>{"owner": true}</pre>
-<p>Before a resource is written, read, deleted, the relationship between the current user and the resource is determined. This can result in 5 possible relationships:</p>
+<p>Every resource can be owned by a user. Ownership is designated by a foreign key reference in that resource that links to a user directly, or to a resource that is owned by a user. The foreign key field that indicates ownership must be explicitly written in the subject's meta comments:</p>
+<pre>{"owner": "user"}</pre>
+<p>Before a resource is written, read, or deleted, the relationship between the current user and the resource is determined. This can result in 5 possible relationships:</p>
 <ul>
   <li><strong>None</strong> - The resource has no relationship to the user
   <li><strong>Private</strong> - The resource is owned by the current user</li>
-  <li><strong>Superprotected</strong> - The resource is owned by a superuser of the current user</li>
-  <li><strong>Subprotected</strong> - The resource is owned by a subuser of the current user</li>
-  <li><strong>Semiprotected</strong> - The resource is owned by a semiuser of the current user</li>
+  <li><strong>Super</strong> - The resource is owned by a superuser of the current user</li>
+  <li><strong>Sub</strong> - The resource is owned by a subuser of the current user</li>
+  <li><strong>Semi</strong> - The resource is owned by a semiuser of the current user</li>
 </ul>
 
 <h5>2. Check Resource Access Policy</h5>
