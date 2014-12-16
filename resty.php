@@ -1,5 +1,5 @@
 <?php
-	function getOwnership($schema, $id){
+	function getRelationship($schema, $id){
 		if(!property_exists($GLOBALS["resty"], "users"))
 			return;
 		if($schema->name == $GLOBALS["resty"]->_users){
@@ -8,42 +8,42 @@
 			if($id == $GLOBALS["authUser"])
 				return "private";
 			if(property_exists($usersSchema->meta, "owner")){
-				// Superprotected
+				// Super
 				$currentID = $id;
 				while(true){
 					if($currentID == $GLOBALS["authUser"])
-						return "superprotected";
+						return "super";
 					else if($currentID === null)
 						break;
 					$currentID = $GLOBALS["db"]->query("SELECT `" . $usersSchema->meta->owner . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($currentID))->fetch(PDO::FETCH_COLUMN, 0);
 				}
-				// Subprotected
+				// Sub
 				$currentID = $GLOBALS["authUser"];
 				while(true){
 					if($currentID == $owner)
-						return "subprotected";
+						return "sub";
 					else if($currentID === null)
 						break;
 					$currentID = $GLOBALS["db"]->query("SELECT `" . $usersSchema->meta->owner . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($currentID))->fetch(PDO::FETCH_COLUMN, 0);
 				}
-				// Semiprotected
+				// Semi
 				$meSuperuserID = $GLOBALS["db"]->query("SELECT `" . $usersSchema->meta->owner . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($GLOBALS["authUser"]))->fetch(PDO::FETCH_COLUMN, 0);
 				$itemSuperuserID = $GLOBALS["db"]->query("SELECT `" . $usersSchema->meta->owner . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($itemSql[property_exists($schema->meta, "owner")]))->fetch(PDO::FETCH_COLUMN, 0);
 				if($meSuperuserID === $itemSuperuserID)
-					return "semiprotected";
+					return "semi";
 			}
 		}
 		else if(property_exists($schema->meta, "owner")){
 			$owner = $GLOBALS["db"]->query("SELECT `" . $schema->meta->owner . "` FROM `" . $schema->name . "` WHERE `" . $schema->id . "` = " . $GLOBALS["db"]->quote($id))->fetch(PDO::FETCH_COLUMN, 0);
 			foreach($schema->fields as $name => $field)
 				if($name == $schema->meta->owner)
-					return getOwnership(getSchema($field->referenceSubject), $owner);
+					return getRelationship(getSchema($field->referenceSubject), $owner);
 		}
 		return null;
 	}
 	function interceptTags($source, $tags, $isolate = false){
 		@$sourceHtml = DOMDocument::loadHTML($isolate ? "<p>" . $source . "</p>" : $source);
-		foreach((array)$tags as $tagName => $tagValue)
+		foreach($tags as $tagName => $tagValue)
 			while($sourceHtml->getElementsByTagName($tagName)->length){
 				$sourceTagXml = $sourceHtml->getElementsByTagName($tagName)->item(0);
 				foreach(DOMDocument::loadHTML("<html><body>" . $tagValue . "</body></html>")->getElementsByTagName("body")->item(0)->childNodes as $childXml)
@@ -171,22 +171,29 @@
 			$schema->fields->{$referenceSql["TABLE_NAME"]} = $inreference;
 		}
 
-		// Conventions
-		if($GLOBALS["resty"]->_users == $subject){
-			$conventions = array("username", "passcode", "email");
-			foreach($conventions as $convention)
-				if(property_exists($schema->meta, $convention))
-					$schema->{$convention} = $schema->meta->{$convention};
-				else foreach($schema->fields as $fieldName=> $field)
-					if($fieldName == $convention)
-						$schema->{$convention} = $fieldName;
-			if(!property_exists($schema, "username") && property_exists($schema, "email"))
-				$schema->username = $schema->email;
-			if(property_exists($schema, "passcode"))
-				if(!property_exists($schema->fields->{$schema->passcode}, "encrypt") || $schema->fields->{$schema->passcode}->meta->encrypt === true)
-					$schema->fields->{$schema->passcode}->encrypt = true;
+		// Meta
+		// Normalise
+		if($subject == $GLOBALS["resty"]->_users){
+			$schema->meta->username = property_exists($schema->meta, "username") ? $schema->meta->username : (property_exists($schema->fields, "username") ? "username" : "email");
+			$schema->meta->passcode = property_exists($schema->meta, "passcode") ? $schema->meta->passcode : "passcode";
+			$schema->meta->email = property_exists($schema->meta, "email") ? $schema->meta->email : "email";
 		}
-
+		$schema->meta->access = property_exists($schema->meta, "access") ? $schema->meta->access : array("private", "super");
+		$schema->meta->affect = property_exists($schema->meta, "affect") ? $schema->meta->affect : array("private", "super");
+		foreach($schema->fields as $fieldName=> &$field){
+			$field->meta->encrypt = property_exists($field->meta, "encrypt") ? $field->meta->encrypt : $fieldName == $schema->meta->passcode;
+			if($field->class == "out-reference" && $field->referenceSubject == $GLOBALS["resty"]->_users)
+				$field->meta->owner = property_exists($field->meta, "owner") ? $field->meta->owner : true;			
+			$field->meta->get = property_exists($field->meta, "get") ? $field->meta->get : array("private", "super");
+			$field->meta->set = property_exists($field->meta, "set") ? $field->meta->set : array("private", "super");
+		}
+		// Register
+		foreach($schema->meta as $name=> $value)
+			$schema->{$name} = $value;
+		foreach($schema->fields as &$field)
+			foreach($field->meta as $name=> $value)
+				$field->{$name} = $value;
+		
 		return $schema;
 	}
 	function browseSubject($subject, $options = null){
@@ -226,7 +233,7 @@
 		}
 
 		$whereSql = $customWhereSql;		
-		foreach((array)$schema->fields as $name => $field)
+		foreach($schema->fields as $name => $field)
 			if($field->class == "value" || $field->class == "out-reference")
 				if(property_exists($options, "rgx:" . $name))
 					$whereSql .= " AND `" . $name . "` " . ($options->{"rgx:" . $name} == "" ? "IS NULL" : " REGEXP " . $GLOBALS["db"]->quote($options->{"rgx:" . $name}));
@@ -244,7 +251,7 @@
 					$whereSql .= " AND `" . $name . "` " . ($options->{"isn:" . $name} == "" ? "IS NULL" : " <> " . $GLOBALS["db"]->quote($options->{"isn:" . $name}));
 		if(property_exists($options, "rgx") && $options->rgx != ""){
 			$whereSql .= " AND (FALSE";
-			foreach((array)$schema->fields as $name => $field)
+			foreach($schema->fields as $name => $field)
 				if($field->class == "value" || $field->class == "out-reference")
 					$whereSql .= " OR `" . $name . "` REGEXP " . $GLOBALS["db"]->quote($options->rgx);
 			$whereSql .= ")";
@@ -255,7 +262,7 @@
 			$limitSql .= " LIMIT " . ($options->off + ($options->pge * $options->lmt)) . ", " . $options->lmt;
 
 		$orderSql = "";
-		foreach((array)$schema->fields as $name => $value)
+		foreach($schema->fields as $name => $value)
 			if(property_exists($options, "ord:" . $name))
 				$orderSql = " ORDER BY `" . $name . "` " . ($options->{"ord:" . $name} == "descending" ? "DESC" : "ASC");
 
@@ -288,22 +295,22 @@
 
 		if($id !== null){
 			// Security: Get Relationship
-			$ownership = getOwnership($schema, $id);
+			$relationship = getRelationship($schema, $id);
 		
 			// Security: Check Resource Access Policy
 			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
-				$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $ownership);
+				$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
 			else if(property_exists($schema->meta, "access"))
 				$accessPolicy = $schema->meta->access;
-			if(isset($accessPolicy) && !in_array($ownership, $accessPolicy))
+			if(isset($accessPolicy) && !in_array($relationship, $accessPolicy))
 				return null;
 			
 			// Security: Check Resource Affect Policy
 			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy"))
-				$affectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $ownership);
+				$affectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationship);
 			else if(property_exists($schema->meta, "affect"))
 				$affectPolicy = $schema->meta->affect;
-			if(isset($affectPolicy) && !in_array($ownership, $affectPolicy))
+			if(isset($affectPolicy) && !in_array($relationship, $affectPolicy))
 				return null;
 		}
 
@@ -319,7 +326,7 @@
 		// Check for database-generated ID
 		if(property_exists($schema, "id")){
 			$dbGeneratedID = false;
-			foreach((array)$item as $fieldName => $value)
+			foreach($item as $fieldName => $value)
 				if($fieldName == $schema->id)
 					$dbGeneratedID = true;
 			if(!$dbGeneratedID)
@@ -340,15 +347,15 @@
 
 		// Set
 		$setSql = "";
-		foreach((array)$schema->fields as $name => $field)
+		foreach($schema->fields as $name => $field)
 			if(property_exists($item, $name) || property_exists($attachments, $name)){
 				
 				// Security: Check Field Set Policy
 				if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "setSecurity"))
-					$setPolicy = call_user_func($GLOBALS["resty"]->{$subject}->setSecurity, $id, $item, $attachments, $name, $ownership);
+					$setPolicy = call_user_func($GLOBALS["resty"]->{$subject}->setSecurity, $id, $item, $attachments, $name, $relationship);
 				else if(property_exists($field->meta, "set"))
 					$setPolicy = $field->meta->set;
-				if(isset($setPolicy) && !in_array($ownership, $setPolicy))
+				if(isset($setPolicy) && !in_array($relationship, $setPolicy))
 					return null;
 				
 				if($field->class == "value")
@@ -384,13 +391,13 @@
 		$idx = isset($idx) ? $idx : $GLOBALS["db"]->lastInsertId();
 		
 		// Encryption
-		foreach((array)$schema->fields as $name => $field)
+		foreach($schema->fields as $name => $field)
 			if($field->class == "value" && property_exists($field->meta, "encrypt") && $field->meta->encrypt == "true")
 				if(property_exists($item, $name))
 					$GLOBALS["db"]->exec("UPDATE `" . $schema->name . "` SET `" . $name . "` = " . $GLOBALS["db"]->quote(md5($item->{$name} . $idx)) . " WHERE `" . $schema->id . "` = " . $GLOBALS["db"]->quote($idx));
 		
 		// Files
-		foreach((array)$schema->fields as $name => $field)
+		foreach($schema->fields as $name => $field)
 			if(property_exists($item, $name) || property_exists($attachments, $name))
 				if($field->class == "in-reference"){
 					$GLOBALS["db"]->exec("DELETE FROM `" . $name . "` WHERE `" . $field->referenceField . "` = " . $GLOBALS["db"]->quote($idx));
@@ -442,16 +449,16 @@
 		$item = new stdClass();
 		
 		// Security: Get Relationship
-		$ownership = getOwnership($schema, $id);
+		$relationship = getRelationship($schema, $id);
 		if(property_exists($options, "own") && $options->own == "true")
-			$item->ownership = $ownership !== null ? $ownership : null;
+			$item->ownership = $relationship !== null ? $relationship : null;
 
 		// Security: Check Resource Access Policy
 		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
-			$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $ownership);
+			$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
 		else if(property_exists($schema->meta, "access"))
 			$accessPolicy = $schema->meta->access;
-		if(isset($accessPolicy) && !in_array($ownership, $accessPolicy))
+		if(isset($accessPolicy) && !in_array($relationship, $accessPolicy))
 			return null;
 		
 		// Get
@@ -467,14 +474,14 @@
 		if($itemSql === false)
 			return null;
 		
-		foreach((array)$schema->fields as $name => $field){
+		foreach($schema->fields as $name => $field){
 			
 			// Security: Check Field Get Policy
 			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "getSecurity"))
-				$getPolicy = call_user_func($GLOBALS["resty"]->{$subject}->preBrowseSecurity, $id, $options, $ownership, $name);
+				$getPolicy = call_user_func($GLOBALS["resty"]->{$subject}->preBrowseSecurity, $id, $options, $relationship, $name);
 			else if(property_exists($field->meta, "get"))
 				$getPolicy = $field->meta->get;
-			if(isset($getPolicy) && !in_array($ownership, $getPolicy))
+			if(isset($getPolicy) && !in_array($relationship, $getPolicy))
 				return null;
 			
 			if($field->class == "value"){
@@ -544,24 +551,24 @@
 		$item = getItem($subject, $id);
 		
 		// Security: Get Ownership
-		$ownership = getOwnership($schema, $id);
+		$relationship = getRelationship($schema, $id);
 		if(property_exists($options, "own") && $options->own == "true")
-			$item->ownership = $ownership !== null ? $ownership : null;
+			$item->ownership = $relationship !== null ? $relationship : null;
 			
 		// Security: Check Resource Access Policy
 		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
-			$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $ownership);
+			$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
 		else if(property_exists($schema->meta, "access"))
 			$accessPolicy = $schema->meta->access;
-		if(isset($accessPolicy) && !in_array($ownership, $accessPolicy))
+		if(isset($accessPolicy) && !in_array($relationship, $accessPolicy))
 			return null;
 	
 		// Security: Check Resource Affect Policy
 		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy"))
-			$affectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $ownership);
+			$affectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationship);
 		else if(property_exists($schema->meta, "affect"))
 			$affectPolicy = $schema->meta->affect;
-		if(isset($affectPolicy) && !in_array($ownership, $affectPolicy))
+		if(isset($affectPolicy) && !in_array($relationship, $affectPolicy))
 			return null;
 		
 		// Delete
@@ -573,7 +580,7 @@
 			call_user_func($GLOBALS["resty"]->{$subject}->preDelete, $id);
 
 		// Remove files
-		foreach((array)$schema->fields as $name => $field)
+		foreach($schema->fields as $name => $field)
 			if($field->class == "file"){
 				$directory = $GLOBALS["resty"]->_files . "/" . $schema->name;
 				unlink($directory . "/" . $id . "/" . $name . "." . $item->{$name});
@@ -858,10 +865,10 @@
 		}
 		// API Map
 		if(array_key_exists("api", $GLOBALS))
-			foreach((array)$GLOBALS["api"] as $name => $subject)
+			foreach($GLOBALS["api"] as $name => $subject)
 				if($name[0] == "_"){
 					$methods = array();
-					foreach((array)$subject as $name => $function)
+					foreach($subject as $name => $function)
 						if($name == "apply" || $name == "preApply" || $name == "postApply"){
 							if(!in_array("POST", $methods))
 								$methods[] = "POST";
