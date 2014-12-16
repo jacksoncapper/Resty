@@ -18,7 +18,7 @@
 
 <h5>2. Check Resource's Access Policy</h5>
 <p>The user relationship is compared to the subject's <em>access policy</em>. A policy is simply an array of allowable relationships that can access the resource. This can be specified in the subject's meta:</p>
-<pre>{"browse": ["private", "sub"]}
+<pre>{"access": ["private", "sub"]}
   // Both the owner and sub-users of the owner can access these resources</pre>
 <p>Resty will deal with attempted access to inaccessible resources depending on the action:</p>
 <ul>
@@ -28,7 +28,7 @@
 
 <h5>3. Check Resource's Affect Policy</h5>
 <p>If the action is a <code>PUT</code>, <code>POST</code>/<code>PUT</code>, or <code>DELETE</code> request, the relationship is compared to the subject's <em>affect policy</em>. This can be specified in the subject's meta:</p>
-<pre>{"update": ["private", "semi"]}
+<pre>{"affect": ["private", "semi"]}
   // Both the owner and semi-users of the owner can affect this resource</pre>
   
 <h5>4. Check Field's Get/Set Policy</h5>
