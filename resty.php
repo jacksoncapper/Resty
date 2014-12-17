@@ -33,7 +33,7 @@
 					return "semi";
 			}
 		}
-		else if(property_exists($schema, "owner")){
+		else if($schema->owner != null){
 			$owner = $GLOBALS["db"]->query("SELECT `" . $schema->owner . "` FROM `" . $schema->name . "` WHERE `" . $schema->id . "` = " . $GLOBALS["db"]->quote($id))->fetch(PDO::FETCH_COLUMN, 0);
 			foreach($schema->fields as $name => $field)
 				if($name == $schema->owner)
@@ -299,25 +299,26 @@
 		$attachments = $attachments !== null ? $attachments : new stdClass();
 
 		if($id !== null){
-			// Security: Get Relationship
-			$relationship = getRelationship($schema, $id);
-		
-			// Security: Check Resource Access Policy
-			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
-				$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
-			else if(property_exists($schema, "access"))
-				$accessPolicy = $schema->access;
-			if(isset($accessPolicy) && !in_array($relationship, $accessPolicy))
-				return null;
+			if($schema->owner != null){
+				// Security: Get Relationship
+				$relationship = getRelationship($schema, $id);
 			
-			// Security: Check Resource Affect Policy
-			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy"))
-				$affectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationship);
-			else if(property_exists($schema, "affect"))
-				$affectPolicy = $schema->affect;
-			if(isset($affectPolicy) && !in_array($relationship, $affectPolicy))
-				return null;
-		}
+				// Security: Check Resource Access Policy
+				if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
+					$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
+				else if(property_exists($schema, "access"))
+					$accessPolicy = $schema->access;
+				if(isset($accessPolicy) && !in_array($relationship, $accessPolicy))
+					return null;
+			
+				// Security: Check Resource Affect Policy
+				if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy"))
+					$affectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationship);
+				else if(property_exists($schema, "affect"))
+					$affectPolicy = $schema->affect;
+				if(isset($affectPolicy) && !in_array($relationship, $affectPolicy))
+					return null;
+			}
 
 		// Apply
 		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "apply"))
@@ -453,18 +454,20 @@
 
 		$item = new stdClass();
 		
-		// Security: Get Relationship
-		$relationship = getRelationship($schema, $id);
-		if(property_exists($options, "own") && $options->own == "true")
-			$item->ownership = $relationship !== null ? $relationship : null;
+		if($schema->owner != null){
+			// Security: Get Relationship
+			$relationship = getRelationship($schema, $id);
+			if(property_exists($options, "own") && $options->own == "true")
+				$item->ownership = $relationship !== null ? $relationship : null;
 
-		// Security: Check Resource Access Policy
-		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
-			$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
-		else if(property_exists($schema, "access"))
-			$accessPolicy = $schema->access;
-		if(isset($accessPolicy) && !in_array($relationship, $accessPolicy))
-			return null;
+			// Security: Check Resource Access Policy
+			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
+				$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
+			else if(property_exists($schema, "access"))
+				$accessPolicy = $schema->access;
+			if(isset($accessPolicy) && !in_array($relationship, $accessPolicy))
+				return null;
+		}
 		
 		// Get
 		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "get"))
@@ -555,26 +558,28 @@
 		$subject = is_object($subject) ? $schema->name : $subject;
 		$item = getItem($subject, $id);
 		
-		// Security: Get Ownership
-		$relationship = getRelationship($schema, $id);
-		if(property_exists($options, "own") && $options->own == "true")
-			$item->ownership = $relationship !== null ? $relationship : null;
+		if($schema->owner != null){
+			// Security: Get Ownership
+			$relationship = getRelationship($schema, $id);
+			if(property_exists($options, "own") && $options->own == "true")
+				$item->ownership = $relationship !== null ? $relationship : null;
 			
-		// Security: Check Resource Access Policy
-		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
-			$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
-		else if(property_exists($schema, "access"))
-			$accessPolicy = $schema->access;
-		if(isset($accessPolicy) && !in_array($relationship, $accessPolicy))
-			return null;
+			// Security: Check Resource Access Policy
+			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
+				$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
+			else if(property_exists($schema, "access"))
+				$accessPolicy = $schema->access;
+			if(isset($accessPolicy) && !in_array($relationship, $accessPolicy))
+				return null;
 	
-		// Security: Check Resource Affect Policy
-		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy"))
-			$affectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationship);
-		else if(property_exists($schema, "affect"))
-			$affectPolicy = $schema->affect;
-		if(isset($affectPolicy) && !in_array($relationship, $affectPolicy))
-			return null;
+			// Security: Check Resource Affect Policy
+			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy"))
+				$affectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationship);
+			else if(property_exists($schema, "affect"))
+				$affectPolicy = $schema->affect;
+			if(isset($affectPolicy) && !in_array($relationship, $affectPolicy))
+				return null;
+		}
 		
 		// Delete
 		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "delete"))
