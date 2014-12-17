@@ -298,27 +298,27 @@
 		$item = $item !== null ? $item : new stdClass();
 		$attachments = $attachments !== null ? $attachments : new stdClass();
 
-		if($id !== null)
-			if($schema->owner != null){
-				// Security: Get Relationship
-				$relationship = getRelationship($schema, $id);
-			
-				// Security: Check Resource Access Policy
-				if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
-					$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
-				else if(property_exists($schema, "access"))
-					$accessPolicy = $schema->access;
-				if(isset($accessPolicy) && !in_array($relationship, $accessPolicy))
-					return null;
-			
-				// Security: Check Resource Affect Policy
-				if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy"))
-					$affectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationship);
-				else if(property_exists($schema, "affect"))
-					$affectPolicy = $schema->affect;
-				if(isset($affectPolicy) && !in_array($relationship, $affectPolicy))
-					return null;
-			}
+		// Security
+		if($id !== null && $schema->owner != null){
+			// Security: Get Relationship
+			$relationship = getRelationship($schema, $id);
+		
+			// Security: Check Resource Access Policy
+			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
+				$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
+			else if(property_exists($schema, "access"))
+				$accessPolicy = $schema->access;
+			if(isset($accessPolicy) && !in_array($relationship, $accessPolicy))
+				return null;
+		
+			// Security: Check Resource Affect Policy
+			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy"))
+				$affectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationship);
+			else if(property_exists($schema, "affect"))
+				$affectPolicy = $schema->affect;
+			if(isset($affectPolicy) && !in_array($relationship, $affectPolicy))
+				return null;
+		}
 
 		// Apply
 		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "apply"))
@@ -357,12 +357,14 @@
 			if(property_exists($item, $name) || property_exists($attachments, $name)){
 				
 				// Security: Check Field Set Policy
-				if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "setSecurity"))
-					$setPolicy = call_user_func($GLOBALS["resty"]->{$subject}->setSecurity, $id, $item, $attachments, $name, $relationship);
-				else if(property_exists($field, "set"))
-					$setPolicy = $field->set;
-				if(isset($setPolicy) && !in_array($relationship, $setPolicy))
-					return null;
+				if($id !== null && $schema->owner != null){ 
+					if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "set-policy"))
+						$setPolicy = call_user_func($GLOBALS["resty"]->{$subject}->setSecurity, $id, $item, $attachments, $name, $relationship);
+					else if(property_exists($field, "set"))
+						$setPolicy = $field->set;
+					if(isset($setPolicy) && !in_array($relationship, $setPolicy))
+						continue;
+				}
 				
 				if($field->class == "value")
 					$setSql .= ($setSql != "" ? ", " : "") . "`" . $name . "` = " . ($item->{$name} === null ? "NULL" : $GLOBALS["db"]->quote($item->{$name}));
@@ -454,6 +456,7 @@
 
 		$item = new stdClass();
 		
+		// Security
 		if($schema->owner != null){
 			// Security: Get Relationship
 			$relationship = getRelationship($schema, $id);
@@ -481,16 +484,18 @@
 		$itemSql = $GLOBALS["db"]->query("SELECT * FROM `" . $subject . "`" . ($id !== null ? " WHERE `" . $schema->id . "` = " . $GLOBALS["db"]->quote($id) : ""))->fetch();
 		if($itemSql === false)
 			return null;
-		
+
 		foreach($schema->fields as $name => $field){
-			
+
 			// Security: Check Field Get Policy
-			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "getSecurity"))
-				$getPolicy = call_user_func($GLOBALS["resty"]->{$subject}->preBrowseSecurity, $id, $options, $relationship, $name);
-			else if(property_exists($field, "get"))
-				$getPolicy = $field->get;
-			if(isset($getPolicy) && !in_array($relationship, $getPolicy))
-				return null;
+			if($schema->owner != null){
+				if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "getSecurity"))
+					$getPolicy = call_user_func($GLOBALS["resty"]->{$subject}->preBrowseSecurity, $id, $options, $relationship, $name);
+				else if(property_exists($field, "get"))
+					$getPolicy = $field->get;
+				if(isset($getPolicy) && !in_array($relationship, $getPolicy))
+					continue;
+			}
 			
 			if($field->class == "value"){
 				if($itemSql[$name] === null)
