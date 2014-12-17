@@ -298,7 +298,7 @@
 		$item = $item !== null ? $item : new stdClass();
 		$attachments = $attachments !== null ? $attachments : new stdClass();
 
-		if($id !== null){
+		if($id !== null)
 			if($schema->owner != null){
 				// Security: Get Relationship
 				$relationship = getRelationship($schema, $id);
