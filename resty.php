@@ -1,21 +1,151 @@
 <?php
-	function getRelationship($schema, $id){
+	function getSchema($subject, $lite = false){
+		$schema = new stdClass();
+		$primaryField = $GLOBALS["db"]->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE"
+			. " WHERE CONSTRAINT_NAME = 'PRIMARY'"
+			. " AND TABLE_SCHEMA = " . $GLOBALS["db"]->quote($GLOBALS["resty"]->_database->name)
+			. " AND TABLE_NAME = " . $GLOBALS["db"]->quote($subject))->fetch(PDO::FETCH_COLUMN, 0);
+		if($primaryField !== false)
+			$schema->id = $primaryField;
+		$schema->name = $subject;
+		$schema->meta = json_decode($GLOBALS["db"]->query("SELECT TABLE_COMMENT FROM INFORMATION_SCHEMA.TABLES"
+			. " WHERE TABLE_SCHEMA = " . $GLOBALS["db"]->quote($GLOBALS["resty"]->_database->name)
+			. " AND TABLE_NAME = " . $GLOBALS["db"]->quote($subject))->fetch(PDO::FETCH_COLUMN, 0));
+		$schema->meta = $schema->meta !== null ? $schema->meta : new stdClass();
+		$schema->methods = array("POST", "BROWSE", "GET", "PUT", "DELETE");
+		$schema->href = $GLOBALS["url"] . "/" . $subject;
+
+		if($lite === true)
+			return $schema;
+
+		// Fields
+		$schema->fields = new stdClass();
+		foreach($GLOBALS["db"]->query("SHOW FULL COLUMNS FROM `" . $subject . "`") as $fieldSql){
+			$field = new stdClass();
+			$field->type = $fieldSql["Type"];
+			$field->meta = json_decode($fieldSql["Comment"]);
+			$field->meta = $field->meta !== null ? $field->meta : new stdClass();
+		
+			// Value
+			$field->class = "value";
+			$field->typex = "string";
+			// Boolean
+			if(strpos($fieldSql["Type"], "tinyint") !== false)
+				$field->typex = "boolean";
+			// Number
+			else if(strpos($fieldSql["Type"], "decimal") !== false)
+				$field->typex = "number";
+			else if(strpos($fieldSql["Type"], "double") !== false)
+				$field->typex = "number";
+			else if(strpos($fieldSql["Type"], "float") !== false)
+				$field->typex = "number";
+			else if(strpos($fieldSql["Type"], "int") !== false)
+				$field->typex = "integer";
+			// Datetime
+			else if(strpos($fieldSql["Type"], "datetime") !== false || strpos($fieldSql["Type"], "timestamp") !== false)
+				$field->typex = "datetime";
+			// Enum 
+			else if(strpos($fieldSql["Type"], "enum") !== false){
+				$field->typex = "select";
+				$field->enum = array();
+				preg_match('/^enum\((.*)\)$/', $fieldSql["Type"], $matches);
+				foreach(explode(",", $matches[1]) as $value)
+					$field->enum[] = trim($value, "'");
+			}
+		
+			// File
+			if(property_exists($field->meta, "file") && $field->meta->file == "true")
+				$field->class = "file";
+		
+			// Out-reference
+			else{
+				$referenceSql = $GLOBALS["db"]->query("SELECT * FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE"
+					. " WHERE TABLE_SCHEMA = " . $GLOBALS["db"]->quote($GLOBALS["resty"]->_database->name)
+					. " AND TABLE_NAME LIKE " . $GLOBALS["db"]->quote($subject)
+					. " AND COLUMN_NAME LIKE " . $GLOBALS["db"]->quote($fieldSql["Field"])
+					. " AND REFERENCED_TABLE_NAME IS NOT NULL")->fetch();
+				if($referenceSql !== false){
+					$field->class = "out-reference";
+					$field->referenceSubject = $referenceSql["REFERENCED_TABLE_NAME"];
+				}
+			}
+		
+			// Nullable
+			$field->nullable = $fieldSql["Null"] == "YES";
+
+			$schema->fields->{$fieldSql["Field"]} = $field;
+		}
+	
+		// In-references
+		foreach($GLOBALS["db"]->query("SELECT * FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE"
+			. " WHERE TABLE_SCHEMA = " . $GLOBALS["db"]->quote($GLOBALS["resty"]->_database->name)
+			. " AND REFERENCED_TABLE_NAME = " . $GLOBALS["db"]->quote($subject)) as $referenceSql){
+			$inreference = new stdClass();
+			$inreference->class = "in-reference";
+			$inreference->referenceField = $referenceSql["COLUMN_NAME"];
+			$meta = json_decode($GLOBALS["db"]->query("SELECT TABLE_COMMENT FROM INFORMATION_SCHEMA.TABLES"
+				. " WHERE TABLE_SCHEMA = " . $GLOBALS["db"]->quote($GLOBALS["resty"]->_database->name)
+				. " AND TABLE_NAME = " . $GLOBALS["db"]->quote($referenceSql["TABLE_NAME"]))->fetch(PDO::FETCH_COLUMN, 0));
+			$meta = $meta === null ? new stdClass() : $meta;
+			$inreference->meta = $meta;
+			$schema->fields->{$referenceSql["TABLE_NAME"]} = $inreference;
+		}
+
+		// Meta
+		// Normalise
+		$defaultPolicy = null;
+		if($subject == $GLOBALS["resty"]->_users){
+			$schema->meta->username = property_exists($schema->meta, "username") ? $schema->meta->username : (property_exists($schema->fields, "username") ? "username" : "email");
+			$schema->meta->passcode = property_exists($schema->meta, "passcode") ? $schema->meta->passcode : "passcode";
+			$schema->meta->email = property_exists($schema->meta, "email") ? $schema->meta->email : "email";
+			$defaultPolicy = array("private", "super");
+		}
+		foreach($schema->fields as $fieldName=> $field)
+			if($field->class == "out-reference" && $field->referenceSubject == $GLOBALS["resty"]->_users){
+				$defaultPolicy = array("private", "super");
+				break;
+			}
+		$schema->meta->{"access-policy"} = property_exists($schema->meta, "access-policy") ? $schema->meta->{"access-policy"} : $defaultPolicy;
+		$schema->meta->{"affect-policy"} = property_exists($schema->meta, "affect-policy") ? $schema->meta->{"affect-policy"} : $defaultPolicy;
+		$schema->meta->{"get-policy"} = property_exists($schema->meta, "get-policy") ? $schema->meta->{"get-policy"} : $defaultPolicy;
+		$schema->meta->{"set-policy"} = property_exists($schema->meta, "set-policy") ? $schema->meta->{"set-policy"} : $defaultPolicy;
+		$schema->meta->{"set-affect-policy"} = property_exists($schema->meta, "set-affect-policy") ? $schema->meta->{"set-affect-policy"} : $defaultPolicy;
+		$schema->fields->{$schema->id}->meta->{"get-policy"} = property_exists($schema->fields->{$schema->id}->meta, "get-policy") ? $schema->fields->{$schema->id}->meta->{"get-policy"} : null;
+		foreach($schema->fields as $fieldName=> &$field){
+			$field->meta->authority = property_exists($field->meta, "authority") ? $field->meta->authority : $field->class == "out-reference" && $field->referenceSubject == $GLOBALS["resty"]->_users;
+			$field->meta->encrypt = property_exists($field->meta, "encrypt") ? $field->meta->encrypt : $fieldName == $schema->meta->passcode;
+			$field->meta->file = property_exists($field->meta, "file") ? $field->meta->file : false;
+			$field->meta->{"get-policy"} = property_exists($field->meta, "get-policy") ? $field->meta->{"get-policy"} : $schema->meta->{"get-policy"};
+			$field->meta->{"set-policy"} = property_exists($field->meta, "set-policy") ? $field->meta->{"set-policy"} : $schema->meta->{"set-policy"};
+			$field->meta->{"set-affect-policy"} = property_exists($field->meta, "set-affect-policy") ? $field->meta->{"set-affect-policy"} : $schema->meta->{"set-affect-policy"};
+		}
+		// Register
+		foreach($schema->meta as $name=> $value)
+			$schema->{$name} = $value;
+		foreach($schema->fields as &$field)
+			foreach($field->meta as $name=> $value)
+				$field->{$name} = $value;
+	
+		return $schema;
+	}
+	function getRelationships($schema, $id){
 		if(!property_exists($GLOBALS["resty"], "_users"))
 			return;
+		$relationships = array();
 		if($schema->name == $GLOBALS["resty"]->_users){
 			$usersSchema = $GLOBALS["usersSchema"];
 			// Private
 			if($id == $GLOBALS["authUser"])
-				return "private";
-			else if(property_exists($usersSchema, "owner")){
+				$relationships[] = "private";
+			else if($field->authority != null){
 				// Super
 				$currentID = $id;
 				while(true){
 					if($currentID == $GLOBALS["authUser"])
-						return "super";
+						$relationships[] = "super";
 					else if($currentID === null)
 						break;
-					$currentID = $GLOBALS["db"]->query("SELECT `" . $usersSchema->owner . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($currentID))->fetch(PDO::FETCH_COLUMN, 0);
+					$currentID = $GLOBALS["db"]->query("SELECT `" . $field->authority . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($currentID))->fetch(PDO::FETCH_COLUMN, 0);
 				}
 				// Sub
 				$currentID = $GLOBALS["authUser"];
@@ -24,22 +154,21 @@
 						return "sub";
 					else if($currentID === null)
 						break;
-					$currentID = $GLOBALS["db"]->query("SELECT `" . $usersSchema->owner . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($currentID))->fetch(PDO::FETCH_COLUMN, 0);
+					$currentID = $GLOBALS["db"]->query("SELECT `" . $field->authority . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($currentID))->fetch(PDO::FETCH_COLUMN, 0);
 				}
 				// Semi
-				$meSuperuserID = $GLOBALS["db"]->query("SELECT `" . $usersSchema->owner . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($GLOBALS["authUser"]))->fetch(PDO::FETCH_COLUMN, 0);
-				$itemSuperuserID = $GLOBALS["db"]->query("SELECT `" . $usersSchema->owner . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($itemSql[property_exists($schema, "owner")]))->fetch(PDO::FETCH_COLUMN, 0);
+				$meSuperuserID = $GLOBALS["db"]->query("SELECT `" . $field->authority . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($GLOBALS["authUser"]))->fetch(PDO::FETCH_COLUMN, 0);
+				$itemSuperuserID = $GLOBALS["db"]->query("SELECT `" . $field->authority . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($itemSql[$field->authority]))->fetch(PDO::FETCH_COLUMN, 0);
 				if($meSuperuserID === $itemSuperuserID)
-					return "semi";
+					$relationships[] = "semi";
 			}
 		}
-		else if($schema->owner != null){
-			$owner = $GLOBALS["db"]->query("SELECT `" . $schema->owner . "` FROM `" . $schema->name . "` WHERE `" . $schema->id . "` = " . $GLOBALS["db"]->quote($id))->fetch(PDO::FETCH_COLUMN, 0);
-			foreach($schema->fields as $name => $field)
-				if($name == $schema->owner)
-					return getRelationship(getSchema($field->referenceSubject), $owner);
-		}
-		return null;
+		else foreach($schema->fields as $fieldName=> $field)
+			if($field->authority === true){
+				$authority = $GLOBALS["db"]->query("SELECT `" . $fieldName . "` FROM `" . $schema->name . "` WHERE `" . $schema->id . "` = " . $GLOBALS["db"]->quote($id))->fetch(PDO::FETCH_COLUMN, 0);
+				$relationships = array_merge($relationships, getRelationships(getSchema($schema->fields->{$fieldName}->referenceSubject), $authority));
+			}
+		return $relationships;
 	}
 	function interceptTags($source, $tags, $isolate = false){
 		@$sourceHtml = DOMDocument::loadHTML($isolate ? "<p>" . $source . "</p>" : $source);
@@ -79,128 +208,6 @@
 		}
 		exit;
 	}	
-	function getSchema($subject, $lite = false){
-		$schema = new stdClass();
-		$primaryField = $GLOBALS["db"]->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE"
-			. " WHERE CONSTRAINT_NAME = 'PRIMARY'"
-			. " AND TABLE_SCHEMA = " . $GLOBALS["db"]->quote($GLOBALS["resty"]->_database->name)
-			. " AND TABLE_NAME = " . $GLOBALS["db"]->quote($subject))->fetch(PDO::FETCH_COLUMN, 0);
-		if($primaryField !== false)
-			$schema->id = $primaryField;
-		$schema->name = $subject;
-		$schema->meta = json_decode($GLOBALS["db"]->query("SELECT TABLE_COMMENT FROM INFORMATION_SCHEMA.TABLES"
-			. " WHERE TABLE_SCHEMA = " . $GLOBALS["db"]->quote($GLOBALS["resty"]->_database->name)
-			. " AND TABLE_NAME = " . $GLOBALS["db"]->quote($subject))->fetch(PDO::FETCH_COLUMN, 0));
-		$schema->meta = $schema->meta !== null ? $schema->meta : new stdClass();
-		$schema->methods = array("POST", "BROWSE", "GET", "PUT", "DELETE");
-		$schema->href = $GLOBALS["url"] . "/" . $subject;
-
-		if($lite === true)
-			return $schema;
-
-		// Fields
-		$schema->fields = new stdClass();
-		foreach($GLOBALS["db"]->query("SHOW FULL COLUMNS FROM `" . $subject . "`") as $fieldSql){
-			$field = new stdClass();
-			$field->type = $fieldSql["Type"];
-			$field->meta = json_decode($fieldSql["Comment"]);
-			$field->meta = $field->meta !== null ? $field->meta : new stdClass();
-			
-			// Value
-			$field->class = "value";
-			$field->typex = "string";
-			// Boolean
-			if(strpos($fieldSql["Type"], "tinyint") !== false)
-				$field->typex = "boolean";
-			// Number
-			else if(strpos($fieldSql["Type"], "decimal") !== false)
-				$field->typex = "number";
-			else if(strpos($fieldSql["Type"], "double") !== false)
-				$field->typex = "number";
-			else if(strpos($fieldSql["Type"], "float") !== false)
-				$field->typex = "number";
-			else if(strpos($fieldSql["Type"], "int") !== false)
-				$field->typex = "integer";
-			// Datetime
-			else if(strpos($fieldSql["Type"], "datetime") !== false || strpos($fieldSql["Type"], "timestamp") !== false)
-				$field->typex = "datetime";
-			// Enum 
-			else if(strpos($fieldSql["Type"], "enum") !== false){
-				$field->typex = "select";
-				$field->enum = array();
-				preg_match('/^enum\((.*)\)$/', $fieldSql["Type"], $matches);
-				foreach(explode(",", $matches[1]) as $value)
-					$field->enum[] = trim($value, "'");
-			}
-			
-			// File
-			if(property_exists($field->meta, "file") && $field->meta->file == "true")
-				$field->class = "file";
-			
-			// Out-reference
-			else{
-				$referenceSql = $GLOBALS["db"]->query("SELECT * FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE"
-					. " WHERE TABLE_SCHEMA = " . $GLOBALS["db"]->quote($GLOBALS["resty"]->_database->name)
-					. " AND TABLE_NAME LIKE " . $GLOBALS["db"]->quote($subject)
-					. " AND COLUMN_NAME LIKE " . $GLOBALS["db"]->quote($fieldSql["Field"])
-					. " AND REFERENCED_TABLE_NAME IS NOT NULL")->fetch();
-				if($referenceSql !== false){
-					$field->class = "out-reference";
-					$field->referenceSubject = $referenceSql["REFERENCED_TABLE_NAME"];
-				}
-			}
-			
-			// Nullable
-			$field->nullable = $fieldSql["Null"] == "YES";
-
-			$schema->fields->{$fieldSql["Field"]} = $field;
-		}
-		
-		// In-references
-		foreach($GLOBALS["db"]->query("SELECT * FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE"
-			. " WHERE TABLE_SCHEMA = " . $GLOBALS["db"]->quote($GLOBALS["resty"]->_database->name)
-			. " AND REFERENCED_TABLE_NAME = " . $GLOBALS["db"]->quote($subject)) as $referenceSql){
-			$inreference = new stdClass();
-			$inreference->class = "in-reference";
-			$inreference->referenceField = $referenceSql["COLUMN_NAME"];
-			$meta = json_decode($GLOBALS["db"]->query("SELECT TABLE_COMMENT FROM INFORMATION_SCHEMA.TABLES"
-				. " WHERE TABLE_SCHEMA = " . $GLOBALS["db"]->quote($GLOBALS["resty"]->_database->name)
-				. " AND TABLE_NAME = " . $GLOBALS["db"]->quote($referenceSql["TABLE_NAME"]))->fetch(PDO::FETCH_COLUMN, 0));
-			$meta = $meta === null ? new stdClass() : $meta;
-			$inreference->meta = $meta;
-			$schema->fields->{$referenceSql["TABLE_NAME"]} = $inreference;
-		}
-
-		// Meta
-		// Normalise
-		if($subject == $GLOBALS["resty"]->_users){
-			$schema->meta->username = property_exists($schema->meta, "username") ? $schema->meta->username : (property_exists($schema->fields, "username") ? "username" : "email");
-			$schema->meta->passcode = property_exists($schema->meta, "passcode") ? $schema->meta->passcode : "passcode";
-			$schema->meta->email = property_exists($schema->meta, "email") ? $schema->meta->email : "email";
-		}
-		$schema->meta->access = property_exists($schema->meta, "access") ? $schema->meta->access : array("private", "super");
-		$schema->meta->affect = property_exists($schema->meta, "affect") ? $schema->meta->affect : array("private", "super");
-		$schema->meta->owner = null;
-		foreach($schema->fields as $fieldName=> $field)
-			if($field->class == "out-reference" && $field->referenceSubject == $GLOBALS["resty"]->_users){
-				$schema->meta->owner = $fieldName;
-				break;
-			}
-		foreach($schema->fields as $fieldName=> &$field){
-			$field->meta->encrypt = property_exists($field->meta, "encrypt") ? $field->meta->encrypt : $fieldName == $schema->meta->passcode;
-			$field->meta->file = property_exists($field->meta, "file") ? $field->meta->file : false;
-			$field->meta->get = property_exists($field->meta, "get") ? $field->meta->get : array("private", "super");
-			$field->meta->set = property_exists($field->meta, "set") ? $field->meta->set : array("private", "super");
-		}
-		// Register
-		foreach($schema->meta as $name=> $value)
-			$schema->{$name} = $value;
-		foreach($schema->fields as &$field)
-			foreach($field->meta as $name=> $value)
-				$field->{$name} = $value;
-		
-		return $schema;
-	}
 	function browseSubject($subject, $options = null){
 		$schema = is_object($subject) ? $subject : getSchema($subject);
 		$subject = is_object($subject) ? $schema->name : $subject;
@@ -229,10 +236,10 @@
 		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "browse"))
 			return call_user_func($GLOBALS["resty"]->{$subject}->browse, $options, $items);
 		
-		// Prebrowse
+		// Pre-browse
 		$customWhereSql = "";
-		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "preBrowse")){
-			$customWhereSql = call_user_func($GLOBALS["resty"]->{$subject}->preBrowse, $options, $items);
+		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "pre-browse")){
+			$customWhereSql = call_user_func($GLOBALS["resty"]->{$subject}->{"pre-browse"}, $options, $items);
 			if($customWhereSql === false)
 				return;
 		}
@@ -286,9 +293,9 @@
 		if(property_exists($options, "lmt"))
 			$items->pageCount = ceil($count / $options->lmt);
 		
-		// Postbrowse
-		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "postBrowse"))
-			call_user_func($GLOBALS["resty"]->{$subject}->postBrowse, $options, $items);
+		// Post-browse
+		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "post-browse"))
+			call_user_func($GLOBALS["resty"]->{$subject}->{"post-browse"}, $options, $items);
 
 		return $items;
 	}
@@ -299,24 +306,26 @@
 		$attachments = $attachments !== null ? $attachments : new stdClass();
 
 		// Security
-		if($id !== null && $schema->owner != null){
-			// Security: Get Relationship
-			$relationship = getRelationship($schema, $id);
+		if($id !== null){
+			// Security: Get Relationships
+			$relationships = getRelationships($schema, $id);
 		
 			// Security: Check Resource Access Policy
-			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
-				$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
-			else if(property_exists($schema, "access"))
-				$accessPolicy = $schema->access;
-			if(isset($accessPolicy) && !in_array($relationship, $accessPolicy))
+			$accessPolicy = $schema->{"access-policy"};
+			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy")){
+				$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationships);
+				$accessPolicy = $apiAccessPolicy === false ? $accessPolicy : $apiAccessPolicy;
+			}
+			if($accessPolicy !== null && !count(array_intersect($relationships, $accessPolicy)))
 				return null;
 		
 			// Security: Check Resource Affect Policy
-			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy"))
-				$affectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationship);
-			else if(property_exists($schema, "affect"))
-				$affectPolicy = $schema->affect;
-			if(isset($affectPolicy) && !in_array($relationship, $affectPolicy))
+			$affectPolicy = $schema->{"affect-policy"};
+			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy")){
+				$apiAffectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationships);
+				$affectPolicy = $apiAffectPolicy === false ? $affectPolicy : $apiAffectPolicy;
+			}
+			if($affectPolicy !== null && !in_array($relationships, $affectPolicy))
 				return null;
 		}
 
@@ -325,8 +334,8 @@
 			return call_user_func($GLOBALS["resty"]->{$subject}->apply, $id, $item, $attachments);
 
 		// Pre-apply
-		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "preApply"))
-			if(call_user_func($GLOBALS["resty"]->{$subject}->preApply, $id, $item, $attachments) === false)
+		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "pre-apply"))
+			if(call_user_func($GLOBALS["resty"]->{$subject}->{"pre-apply"}, $id, $item, $attachments) === false)
 				return;
 
 		// Check for database-generated ID
@@ -357,12 +366,13 @@
 			if(property_exists($item, $name) || property_exists($attachments, $name)){
 				
 				// Security: Check Field Set Policy
-				if($id !== null && $schema->owner != null){ 
-					if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "set-policy"))
-						$setPolicy = call_user_func($GLOBALS["resty"]->{$subject}->setSecurity, $id, $item, $attachments, $name, $relationship);
-					else if(property_exists($field, "set"))
-						$setPolicy = $field->set;
-					if(isset($setPolicy) && !in_array($relationship, $setPolicy))
+				if($id !== null){ 
+					$setPolicy = $field->{"set-policy"};
+					if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "set-policy")){
+						$apiSetPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"set-policy"}, $id, $item, $attachments, $name, $relationships);
+						$setPolicy = $apiSetPolicy === false ? $setPolicy : $apiSetPolicy;
+					}
+					if($setPolicy !== null && !count(array_intersect($relationships, $setPolicy)))
 						continue;
 				}
 				
@@ -376,10 +386,18 @@
 						$setSql .= ($setSql != "" ? ", " : "") . "`" . $name . "` = " . $GLOBALS["db"]->quote($outID);
 					}
 					else{
-						// Security: Check Field Set-Reference Policy
-						if($item->{$name} !== null)
-							if(applyItem($field->referenceSubject, $item->{$name}, new stdClass()) === null)
-								continue;
+						// Security: Get Set-Affect Relationships
+						$setAffectRelationships = getRelationships(getSchema($field->referenceSubject), $item->{$name});
+						
+						// Security: Check Field Set-Affect Policy
+						$setAffectPolicy = $field->{"set-affect-policy"};
+						if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "set-affect-policy")){
+							$apiSetAffectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"set-affect-policy"}, $id, $item, $attachments, $name, $relationships);
+							$setAffectPolicy = $apiSetAffectPolicy === false ? $setAffectPolicy : $apiSetAffectPolicy;
+						}
+						if($setAffectPolicy !== null && !count(array_intersect($setAffectRelationships, $setAffectPolicy)))							
+							continue;
+
 						$setSql .= ($setSql != "" ? ", " : "") . "`" . $name . "` = " . ($item->{$name} === null ? "NULL" : $GLOBALS["db"]->quote($item->{$name}));
 					}
 				}
@@ -444,8 +462,8 @@
 				}
 		
 		// Post-apply
-		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "postApply"))
-			call_user_func($GLOBALS["resty"]->{$subject}->postApply, $idx, $item, $attachments);
+		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "post-apply"))
+			call_user_func($GLOBALS["resty"]->{$subject}->{"post-apply"}, $idx, $item, $attachments);
 		
 		return $idx;
 	}
@@ -456,29 +474,25 @@
 
 		$item = new stdClass();
 		
-		// Security
-		if($schema->owner != null){
-			// Security: Get Relationship
-			$relationship = getRelationship($schema, $id);
-			if(property_exists($options, "own") && $options->own == "true")
-				$item->ownership = $relationship !== null ? $relationship : null;
+		// Security: Get Relationships
+		$relationships = getRelationships($schema, $id);
 
-			// Security: Check Resource Access Policy
-			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
-				$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
-			else if(property_exists($schema, "access"))
-				$accessPolicy = $schema->access;
-			if(isset($accessPolicy) && !in_array($relationship, $accessPolicy))
-				return null;
+		// Security: Check Resource Access Policy
+		$accessPolicy = $schema->{"access-policy"};
+		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy")){
+			$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationships);
+			$accessPolicy = $apiAccessPolicy === false ? $accessPolicy : $apiAccessPolicy;
 		}
-		
+		if($accessPolicy !== null && !count(array_intersect($relationships, $accessPolicy)))
+			return null;
+
 		// Get
 		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "get"))
 			return call_user_func($GLOBALS["resty"]->{$subject}->get, $id, $item, $options);
 
-		// Preget
-		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "preGet"))
-			if(call_user_func($GLOBALS["resty"]->{$subject}->preGet, $id, $item, $options) === false)
+		// Pre-get
+		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "pre-get"))
+			if(call_user_func($GLOBALS["resty"]->{$subject}->{"pre-get"}, $id, $item, $options) === false)
 				return;
 
 		$itemSql = $GLOBALS["db"]->query("SELECT * FROM `" . $subject . "`" . ($id !== null ? " WHERE `" . $schema->id . "` = " . $GLOBALS["db"]->quote($id) : ""))->fetch();
@@ -488,14 +502,13 @@
 		foreach($schema->fields as $name => $field){
 
 			// Security: Check Field Get Policy
-			if($schema->owner != null){
-				if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "getSecurity"))
-					$getPolicy = call_user_func($GLOBALS["resty"]->{$subject}->preBrowseSecurity, $id, $options, $relationship, $name);
-				else if(property_exists($field, "get"))
-					$getPolicy = $field->get;
-				if(isset($getPolicy) && !in_array($relationship, $getPolicy))
-					continue;
+			$getPolicy = $field->{"get-policy"};
+			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "get-policy")){
+				$apiGetPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"get-policy"}, $id, $options, $relationships, $name);
+				$getPolicy = $apiGetPolicy === false ? $getPolicy : $apiGetPolicy;
 			}
+			if($getPolicy !== null && !count(array_intersect($relationships, $getPolicy)))
+				continue;
 			
 			if($field->class == "value"){
 				if($itemSql[$name] === null)
@@ -551,9 +564,9 @@
 		
 		$item->href = $GLOBALS["url"] . "/" . $subject . (property_exists($schema, "id") ? "/" . $id : "");
 		
-		// Postget
-		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "postGet"))
-			if(call_user_func($GLOBALS["resty"]->{$subject}->postGet, $id, $item, $options) === false)
+		// Post-get
+		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "post-get"))
+			if(call_user_func($GLOBALS["resty"]->{$subject}->{"post-get"}, $id, $item, $options) === false)
 				return;
 		
 		return $item;
@@ -563,36 +576,34 @@
 		$subject = is_object($subject) ? $schema->name : $subject;
 		$item = getItem($subject, $id);
 		
-		if($schema->owner != null){
-			// Security: Get Ownership
-			$relationship = getRelationship($schema, $id);
-			if(property_exists($options, "own") && $options->own == "true")
-				$item->ownership = $relationship !== null ? $relationship : null;
-			
-			// Security: Check Resource Access Policy
-			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy"))
-				$accessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
-			else if(property_exists($schema, "access"))
-				$accessPolicy = $schema->access;
-			if(isset($accessPolicy) && !in_array($relationship, $accessPolicy))
-				return null;
-	
-			// Security: Check Resource Affect Policy
-			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy"))
-				$affectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationship);
-			else if(property_exists($schema, "affect"))
-				$affectPolicy = $schema->affect;
-			if(isset($affectPolicy) && !in_array($relationship, $affectPolicy))
-				return null;
+		// Security: Get Ownership
+		$relationships = getRelationships($schema, $id);
+		
+		// Security: Check Resource Access Policy
+		$accessPolicy = $schema->{"access-policy"};
+		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy")){
+			$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationships);
+			$accessPolicy = $apiAccessPolicy === false ? $accessPolicy : $apiAccessPolicy;
 		}
+		if($accessPolicy !== null && !count(array_intersect($relationships, $accessPolicy)))
+			return null;
+
+		// Security: Check Resource Affect Policy
+		$affectPolicy = $schema->{"affect-policy"};
+		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy")){
+			$apiAffectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationships);
+			$affectPolicy = $apiAffectPolicy === false ? $affectPolicy : $apiAffectPolicy;
+		}
+		if($affectPolicy !== null && !in_array($relationships, $affectPolicy))
+			return null;
 		
 		// Delete
 		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "delete"))
 			return call_user_func($GLOBALS["resty"]->{$subject}->delete, $id);
 
 		// Pre-delete
-		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "preDelete"))
-			call_user_func($GLOBALS["resty"]->{$subject}->preDelete, $id);
+		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "pre-delete"))
+			call_user_func($GLOBALS["resty"]->{$subject}->{"pre-delete"}, $id);
 
 		// Remove files
 		foreach($schema->fields as $name => $field)
@@ -606,8 +617,8 @@
 		$GLOBALS["db"]->exec("DELETE FROM `" . $schema->name . "` WHERE `" . $schema->id . "` = " . $GLOBALS["db"]->quote($id));
 		
 		// Post-delete
-		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "postDelete"))
-			call_user_func($GLOBALS["resty"]->{$subject}->postDelete, $id);
+		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "post-delete"))
+			call_user_func($GLOBALS["resty"]->{$subject}->{"post-delete"}, $id);
 	}
 
 	// Initiate	
@@ -884,21 +895,21 @@
 				if($name[0] == "_"){
 					$methods = array();
 					foreach($subject as $name => $function)
-						if($name == "apply" || $name == "preApply" || $name == "postApply"){
+						if($name == "apply" || $name == "pre-apply" || $name == "post-apply"){
 							if(!in_array("POST", $methods))
 								$methods[] = "POST";
 							if(!in_array("PUT", $methods))
 								$methods[] = "PUT";	
 						}
-						else if($name == "browse" || $name == "preBrowse" || $name == "postBrowse"){
+						else if($name == "browse" || $name == "pre-browse" || $name == "post-browse"){
 							if(!in_array("GET", $methods))
 								$methods[] = "BROWSE";
 						}
-						else if($name == "get" || $name == "preGet" || $name == "postGet"){
+						else if($name == "get" || $name == "pre-get" || $name == "post-get"){
 							if(!in_array("GET", $methods))
 								$methods[] = "GET";
 						}
-						else if($name == "delete" || $name == "preDelete" || $name == "postDelete"){
+						else if($name == "delete" || $name == "pre-delete" || $name == "post-delete"){
 							if(!in_array("DELETE", $methods))
 								$methods[] = "DELETE";
 						}
