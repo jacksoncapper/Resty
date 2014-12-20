@@ -128,21 +128,21 @@
 	
 		return $schema;
 	}
-	function getRelationships($schema, $id){
+	function getRelationship($schema, $id){
 		if(!property_exists($GLOBALS["resty"], "_users"))
 			return;
-		$relationships = array();
+		$relationship = array();
 		if($schema->name == $GLOBALS["resty"]->_users){
 			$usersSchema = $GLOBALS["usersSchema"];
 			// Private
 			if($id == $GLOBALS["authUser"])
-				$relationships[] = "private";
+				$relationship[] = "private";
 			else if($field->authority != null){
 				// Super
 				$currentID = $id;
 				while(true){
 					if($currentID == $GLOBALS["authUser"])
-						$relationships[] = "super";
+						$relationship[] = "super";
 					else if($currentID === null)
 						break;
 					$currentID = $GLOBALS["db"]->query("SELECT `" . $field->authority . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($currentID))->fetch(PDO::FETCH_COLUMN, 0);
@@ -160,13 +160,13 @@
 				$meSuperuserID = $GLOBALS["db"]->query("SELECT `" . $field->authority . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($GLOBALS["authUser"]))->fetch(PDO::FETCH_COLUMN, 0);
 				$itemSuperuserID = $GLOBALS["db"]->query("SELECT `" . $field->authority . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($itemSql[$field->authority]))->fetch(PDO::FETCH_COLUMN, 0);
 				if($meSuperuserID === $itemSuperuserID)
-					$relationships[] = "semi";
+					$relationship[] = "semi";
 			}
 		}
 		else foreach($schema->fields as $fieldName=> $field)
 			if($field->authority === true){
 				$authority = $GLOBALS["db"]->query("SELECT `" . $fieldName . "` FROM `" . $schema->name . "` WHERE `" . $schema->id . "` = " . $GLOBALS["db"]->quote($id))->fetch(PDO::FETCH_COLUMN, 0);
-				$relationships = array_merge($relationships, getRelationships(getSchema($schema->fields->{$fieldName}->referenceSubject), $authority));
+				$relationship = array_merge($relationship, getRelationship(getSchema($schema->fields->{$fieldName}->referenceSubject), $authority));
 			}
 		return $relationships;
 	}
@@ -307,25 +307,25 @@
 
 		// Security
 		if($id !== null){
-			// Security: Get Relationships
-			$relationships = getRelationships($schema, $id);
+			// Security: Get Relationship
+			$relationship = getRelationship($schema, $id);
 		
 			// Security: Check Resource Access Policy
 			$accessPolicy = $schema->{"access-policy"};
 			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy")){
-				$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationships);
+				$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
 				$accessPolicy = $apiAccessPolicy === false ? $accessPolicy : $apiAccessPolicy;
 			}
-			if($accessPolicy !== null && !count(array_intersect($relationships, $accessPolicy)))
+			if($accessPolicy !== null && !count(array_intersect($relationship, $accessPolicy)))
 				return null;
 		
 			// Security: Check Resource Affect Policy
 			$affectPolicy = $schema->{"affect-policy"};
 			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy")){
-				$apiAffectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationships);
+				$apiAffectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationship);
 				$affectPolicy = $apiAffectPolicy === false ? $affectPolicy : $apiAffectPolicy;
 			}
-			if($affectPolicy !== null && !in_array($relationships, $affectPolicy))
+			if($affectPolicy !== null && !in_array($relationship, $affectPolicy))
 				return null;
 		}
 
@@ -369,10 +369,10 @@
 				if($id !== null){ 
 					$setPolicy = $field->{"set-policy"};
 					if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "set-policy")){
-						$apiSetPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"set-policy"}, $id, $item, $attachments, $name, $relationships);
+						$apiSetPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"set-policy"}, $id, $item, $attachments, $name, $relationship);
 						$setPolicy = $apiSetPolicy === false ? $setPolicy : $apiSetPolicy;
 					}
-					if($setPolicy !== null && !count(array_intersect($relationships, $setPolicy)))
+					if($setPolicy !== null && !count(array_intersect($relationship, $setPolicy)))
 						continue;
 				}
 				
@@ -386,16 +386,26 @@
 						$setSql .= ($setSql != "" ? ", " : "") . "`" . $name . "` = " . $GLOBALS["db"]->quote($outID);
 					}
 					else{
-						// Security: Get Set-Affect Relationships
-						$setAffectRelationships = getRelationships(getSchema($field->referenceSubject), $item->{$name});
+						// Security: Get Set-Affect Relationship
+						$referenceSchema = getSchema($field->referenceSubject);
+						$setAffectRelationship = getRelationship($referenceSchema, $item->{$name});
+						
+						// Security: Check Access Policy
+						$accessPolicy = $referenceSchema->{"access-policy"};
+						if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$field->referenceSubject}, "access-policy")){
+							$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$field->referenceSubject}->{"access-policy"}, $id, $options, $relationship);
+							$accessPolicy = $apiAccessPolicy === false ? $accessPolicy : $apiAccessPolicy;
+						}
+						if($accessPolicy !== null && !count(array_intersect($setAffectRelationship, $accessPolicy)))
+							return null;
 						
 						// Security: Check Field Set-Affect Policy
 						$setAffectPolicy = $field->{"set-affect-policy"};
 						if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "set-affect-policy")){
-							$apiSetAffectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"set-affect-policy"}, $id, $item, $attachments, $name, $relationships);
+							$apiSetAffectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"set-affect-policy"}, $id, $item, $attachments, $name, $relationship);
 							$setAffectPolicy = $apiSetAffectPolicy === false ? $setAffectPolicy : $apiSetAffectPolicy;
 						}
-						if($setAffectPolicy !== null && !count(array_intersect($setAffectRelationships, $setAffectPolicy)))							
+						if($setAffectPolicy !== null && !count(array_intersect($setAffectRelationship, $setAffectPolicy)))							
 							continue;
 
 						$setSql .= ($setSql != "" ? ", " : "") . "`" . $name . "` = " . ($item->{$name} === null ? "NULL" : $GLOBALS["db"]->quote($item->{$name}));
@@ -474,16 +484,16 @@
 
 		$item = new stdClass();
 		
-		// Security: Get Relationships
-		$relationships = getRelationships($schema, $id);
+		// Security: Get Relationship
+		$relationship = getRelationship($schema, $id);
 
 		// Security: Check Resource Access Policy
 		$accessPolicy = $schema->{"access-policy"};
 		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy")){
-			$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationships);
+			$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
 			$accessPolicy = $apiAccessPolicy === false ? $accessPolicy : $apiAccessPolicy;
 		}
-		if($accessPolicy !== null && !count(array_intersect($relationships, $accessPolicy)))
+		if($accessPolicy !== null && !count(array_intersect($relationship, $accessPolicy)))
 			return null;
 
 		// Get
@@ -504,10 +514,10 @@
 			// Security: Check Field Get Policy
 			$getPolicy = $field->{"get-policy"};
 			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "get-policy")){
-				$apiGetPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"get-policy"}, $id, $options, $relationships, $name);
+				$apiGetPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"get-policy"}, $id, $options, $relationship, $name);
 				$getPolicy = $apiGetPolicy === false ? $getPolicy : $apiGetPolicy;
 			}
-			if($getPolicy !== null && !count(array_intersect($relationships, $getPolicy)))
+			if($getPolicy !== null && !count(array_intersect($relationship, $getPolicy)))
 				continue;
 			
 			if($field->class == "value"){
@@ -577,24 +587,24 @@
 		$item = getItem($subject, $id);
 		
 		// Security: Get Ownership
-		$relationships = getRelationships($schema, $id);
+		$relationship = getRelationship($schema, $id);
 		
 		// Security: Check Resource Access Policy
 		$accessPolicy = $schema->{"access-policy"};
 		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy")){
-			$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationships);
+			$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
 			$accessPolicy = $apiAccessPolicy === false ? $accessPolicy : $apiAccessPolicy;
 		}
-		if($accessPolicy !== null && !count(array_intersect($relationships, $accessPolicy)))
+		if($accessPolicy !== null && !count(array_intersect($relationship, $accessPolicy)))
 			return null;
 
 		// Security: Check Resource Affect Policy
 		$affectPolicy = $schema->{"affect-policy"};
 		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy")){
-			$apiAffectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationships);
+			$apiAffectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationship);
 			$affectPolicy = $apiAffectPolicy === false ? $affectPolicy : $apiAffectPolicy;
 		}
-		if($affectPolicy !== null && !in_array($relationships, $affectPolicy))
+		if($affectPolicy !== null && !in_array($relationship, $affectPolicy))
 			return null;
 		
 		// Delete
