@@ -5,9 +5,9 @@
 <p>Resty uses the concept of <em>ownership</em> to deny/accept read/write actions on resources and properties. Each action request goes through the following steps:</p>
 
 <h5>1. Get Relationship</h5>
-<p>Ownership of each resource is designated by a foreign key reference that links to a user directly, or to a resource that is owned by a user. The foreign key field that indicates ownership can be specified in the subject's meta:</p>
-<pre>{"owner": "user"}</pre>
-<p>Before a resource is written, read, or deleted, the relationship between the current user and the resource is determined. This can result in 5 possible relationships:</p>
+<p>Authority of each resource is designated by a foreign key reference that links to a user directly, or to a resource that is authorised by a user. Foreign key fields that indicate authority can be specified in the reference field's meta:</p>
+<pre>{"authority": true}</pre>
+<p>Before a resource is written, read, or deleted, the relationships between the current user and the resource is determined. This can result in 5 possible relationships:</p>
 <ul>
   <li><strong>None</strong> - The resource has no relationship to the user
   <li><strong>Private</strong> - The resource is owned by the current user</li>
@@ -38,8 +38,12 @@
   // Only the owner can set this field</pre>
 <p>Where a user isn't permitted to get or set a field, that field is skipped. All other fields will be processed independantly.</p>
   
-<h5>5. Check Field's Set-Reference Policy</h5>
-<p>If the action is a <code>PUT</code>/<code>POST</code>, and a field is being set to a reference, the reference resource is considered to be being affected. Therefore, the referenced resource's access and affect policies are compared to the relationship as if that resource were being applied.</p>
+<h5>5. Check Field's Set-Reference Access Policy</h5>
+<p>If the action is a <code>PUT</code>/<code>POST</code>, and a field is being set to a reference, the reference resource is considered to be being affected. Therefore, the referenced subject of resource's access policy is compared to the relationship.</p>
+<p>Where the user isn't permitted to set a field to a referenced resource, that field is skipped. All other fields will be process independantly.</p>
+
+<h5>6. Check Field's Set-Reference Policy</h5>
+<p>If the action is a <code>PUT</code>/<code>POST</code>, and a field is being set to a reference, the reference resource is considered to be being affected. Therefore, the referenced resource's set-access policy is compared to the relationship.</p>
 <p>Where the user isn't permitted to set a field to a referenced resource, that field is skipped. All other fields will be process independantly.</p>
 
 <h3>License</h3>
