@@ -168,7 +168,7 @@
 				$authority = $GLOBALS["db"]->query("SELECT `" . $fieldName . "` FROM `" . $schema->name . "` WHERE `" . $schema->id . "` = " . $GLOBALS["db"]->quote($id))->fetch(PDO::FETCH_COLUMN, 0);
 				$relationship = array_merge($relationship, getRelationship(getSchema($schema->fields->{$fieldName}->referenceSubject), $authority));
 			}
-		return $relationships;
+		return $relationship;
 	}
 	function interceptTags($source, $tags, $isolate = false){
 		@$sourceHtml = DOMDocument::loadHTML($isolate ? "<p>" . $source . "</p>" : $source);
@@ -486,7 +486,7 @@
 		
 		// Security: Get Relationship
 		$relationship = getRelationship($schema, $id);
-
+		
 		// Security: Check Resource Access Policy
 		$accessPolicy = $schema->{"access-policy"};
 		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "access-policy")){
@@ -508,7 +508,7 @@
 		$itemSql = $GLOBALS["db"]->query("SELECT * FROM `" . $subject . "`" . ($id !== null ? " WHERE `" . $schema->id . "` = " . $GLOBALS["db"]->quote($id) : ""))->fetch();
 		if($itemSql === false)
 			return null;
-
+		
 		foreach($schema->fields as $name => $field){
 
 			// Security: Check Field Get Policy
