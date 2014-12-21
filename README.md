@@ -38,12 +38,12 @@
   // Only the owner can set this field</pre>
 <p>Where a user isn't permitted to get or set a field, that field is skipped. All other fields will be processed independantly.</p>
   
-<h5>5. Check Field's Set-Reference Access Policy</h5>
+<h5>5. Check Field's Referenced Subject Access Policy</h5>
 <p>If the action is a <code>PUT</code>/<code>POST</code>, and a field is being set to a reference, the reference resource is considered to be being affected. Therefore, the referenced subject of resource's access policy is compared to the relationship.</p>
 <p>Where the user isn't permitted to set a field to a referenced resource, that field is skipped. All other fields will be process independantly.</p>
 
-<h5>6. Check Field's Set-Reference Policy</h5>
-<p>If the action is a <code>PUT</code>/<code>POST</code>, and a field is being set to a reference, the reference resource is considered to be being affected. Therefore, the referenced resource's set-access policy is compared to the relationship.</p>
+<h5>6. Check Field's Reference Policy</h5>
+<p>If the action is a <code>PUT</code>/<code>POST</code>, and a field is being set to a reference, the reference resource is considered to be being affected. Therefore, the referenced resource's reference policy is compared to the relationship.</p>
 <p>Where the user isn't permitted to set a field to a referenced resource, that field is skipped. All other fields will be process independantly.</p>
 
 <h3>License</h3>
