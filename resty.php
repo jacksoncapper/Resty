@@ -98,26 +98,19 @@
 			$schema->meta->username = property_exists($schema->meta, "username") ? $schema->meta->username : (property_exists($schema->fields, "username") ? "username" : "email");
 			$schema->meta->passcode = property_exists($schema->meta, "passcode") ? $schema->meta->passcode : "passcode";
 			$schema->meta->email = property_exists($schema->meta, "email") ? $schema->meta->email : "email";
-			$defaultPolicy = array("private", "super");
 		}
-		foreach($schema->fields as $fieldName=> $field)
-			if($field->class == "out-reference" && $field->referenceSubject == $GLOBALS["resty"]->_users){
-				$defaultPolicy = array("private", "super");
-				break;
-			}
-		$schema->meta->{"access-policy"} = property_exists($schema->meta, "access-policy") ? $schema->meta->{"access-policy"} : $defaultPolicy;
-		$schema->meta->{"affect-policy"} = property_exists($schema->meta, "affect-policy") ? $schema->meta->{"affect-policy"} : $defaultPolicy;
-		$schema->meta->{"get-policy"} = property_exists($schema->meta, "get-policy") ? $schema->meta->{"get-policy"} : $defaultPolicy;
-		$schema->meta->{"set-policy"} = property_exists($schema->meta, "set-policy") ? $schema->meta->{"set-policy"} : $defaultPolicy;
-		$schema->meta->{"set-affect-policy"} = property_exists($schema->meta, "set-affect-policy") ? $schema->meta->{"set-affect-policy"} : $defaultPolicy;
-		$schema->fields->{$schema->id}->meta->{"get-policy"} = property_exists($schema->fields->{$schema->id}->meta, "get-policy") ? $schema->fields->{$schema->id}->meta->{"get-policy"} : null;
+		$schema->meta->{"access-policy"} = property_exists($schema->meta, "access-policy") ? $schema->meta->{"access-policy"} : array("private", "super");
+		$schema->meta->{"affect-policy"} = property_exists($schema->meta, "affect-policy") ? $schema->meta->{"affect-policy"} : array("private", "super");
+		$schema->meta->{"get-policy"} = property_exists($schema->meta, "get-policy") ? $schema->meta->{"get-policy"} : $schema->meta->{"access-policy"};
+		$schema->meta->{"set-policy"} = property_exists($schema->meta, "set-policy") ? $schema->meta->{"set-policy"} : $schema->meta->{"affect-policy"};
+		$schema->meta->{"reference-policy"} = property_exists($schema->meta, "reference-policy") ? $schema->meta->{"reference-policy"} : array("private", "super");
 		foreach($schema->fields as $fieldName=> &$field){
 			$field->meta->authority = property_exists($field->meta, "authority") ? $field->meta->authority : $field->class == "out-reference" && $field->referenceSubject == $GLOBALS["resty"]->_users;
 			$field->meta->encrypt = property_exists($field->meta, "encrypt") ? $field->meta->encrypt : $fieldName == $schema->meta->passcode;
 			$field->meta->file = property_exists($field->meta, "file") ? $field->meta->file : false;
 			$field->meta->{"get-policy"} = property_exists($field->meta, "get-policy") ? $field->meta->{"get-policy"} : $schema->meta->{"get-policy"};
 			$field->meta->{"set-policy"} = property_exists($field->meta, "set-policy") ? $field->meta->{"set-policy"} : $schema->meta->{"set-policy"};
-			$field->meta->{"set-affect-policy"} = property_exists($field->meta, "set-affect-policy") ? $field->meta->{"set-affect-policy"} : $schema->meta->{"set-affect-policy"};
+			$field->meta->{"reference-policy"} = property_exists($field->meta, "reference-policy") ? $field->meta->{"reference-policy"} : $schema->meta->{"reference-policy"};
 		}
 		// Register
 		foreach($schema->meta as $name=> $value)
@@ -388,24 +381,24 @@
 					else{
 						// Security: Get Set-Affect Relationship
 						$referenceSchema = getSchema($field->referenceSubject);
-						$setAffectRelationship = getRelationship($referenceSchema, $item->{$name});
-						
+						$referenceRelationship = getRelationship($referenceSchema, $item->{$name});
+
 						// Security: Check Access Policy
 						$accessPolicy = $referenceSchema->{"access-policy"};
 						if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$field->referenceSubject}, "access-policy")){
 							$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$field->referenceSubject}->{"access-policy"}, $id, $options, $relationship);
 							$accessPolicy = $apiAccessPolicy === false ? $accessPolicy : $apiAccessPolicy;
 						}
-						if($accessPolicy !== null && !count(array_intersect($setAffectRelationship, $accessPolicy)))
+						if($accessPolicy !== null && !count(array_intersect($referenceRelationship, $accessPolicy)))
 							return null;
-						
-						// Security: Check Field Set-Affect Policy
-						$setAffectPolicy = $field->{"set-affect-policy"};
-						if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "set-affect-policy")){
-							$apiSetAffectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"set-affect-policy"}, $id, $item, $attachments, $name, $relationship);
-							$setAffectPolicy = $apiSetAffectPolicy === false ? $setAffectPolicy : $apiSetAffectPolicy;
+
+						// Security: Check Field Reference Policy
+						$referencePolicy = $field->{"reference-policy"};
+						if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "reference-policy")){
+							$apiReferencePolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"reference-policy"}, $id, $item, $attachments, $name, $relationship);
+							$referencePolicy = $apiReferencePolicy === false ? $referencePolicy : $apiReferencePolicy;
 						}
-						if($setAffectPolicy !== null && !count(array_intersect($setAffectRelationship, $setAffectPolicy)))							
+						if($referencePolicy !== null && !count(array_intersect($referenceRelationship, $referencePolicy)))							
 							continue;
 
 						$setSql .= ($setSql != "" ? ", " : "") . "`" . $name . "` = " . ($item->{$name} === null ? "NULL" : $GLOBALS["db"]->quote($item->{$name}));
