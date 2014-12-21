@@ -40,7 +40,7 @@
 			else if(strpos($fieldSql["Type"], "float") !== false)
 				$field->typex = "number";
 			else if(strpos($fieldSql["Type"], "int") !== false)
-				$field->typex = "integer";
+				$field->typex = "number";
 			// Datetime
 			else if(strpos($fieldSql["Type"], "datetime") !== false || strpos($fieldSql["Type"], "timestamp") !== false)
 				$field->typex = "datetime";
