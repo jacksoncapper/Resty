@@ -597,7 +597,7 @@
 			$apiAffectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationship);
 			$affectPolicy = $apiAffectPolicy === false ? $affectPolicy : $apiAffectPolicy;
 		}
-		if($affectPolicy !== null && !in_array($relationship, $affectPolicy))
+		if($affectPolicy !== null && !count(array_intersect($relationship, $affectPolicy)))
 			return null;
 		
 		// Delete
