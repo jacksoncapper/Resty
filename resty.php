@@ -311,17 +311,17 @@
 			}
 			if($accessPolicy !== null && !count(array_intersect($relationship, $accessPolicy)))
 				return null;
-		
+
 			// Security: Check Resource Affect Policy
 			$affectPolicy = $schema->{"affect-policy"};
 			if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "affect-policy")){
 				$apiAffectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationship);
 				$affectPolicy = $apiAffectPolicy === false ? $affectPolicy : $apiAffectPolicy;
 			}
-			if($affectPolicy !== null && !in_array($relationship, $affectPolicy))
+			if($affectPolicy !== null && !count(array_intersect($relationship, $affectPolicy)))
 				return null;
 		}
-
+		
 		// Apply
 		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "apply"))
 			return call_user_func($GLOBALS["resty"]->{$subject}->apply, $id, $item, $attachments);
