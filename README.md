@@ -84,7 +84,7 @@
     </ol>
   </li>
 </ul>
-<p>If the user has a blocked relationship with any authority, this will always result in the action being denied. Fields checkpoints are processed independantly of the other fields, even if there is a denial.</p>
+<p>If the user has a blocked relationship with any authority, this will always result in denial. Field checkpoints are processed independantly of the other fields, even if there is a denial.</p>
 
 <h3>License</h3>
 <p>Copyright © 2014 - Jackson Capper<br/><a href='https://github.com/jacksoncapper' target='_blank'>https://github.com/jacksoncapper</a></p>
