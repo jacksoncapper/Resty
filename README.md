@@ -5,7 +5,7 @@
 <p>Resty uses the concept of <em>authority</em> to deny or allow actions on resources and their fields.</p>
 
 <h5>Authority</h5>
-<p>When a resource is accessed or affected, the authorised user of the request is compared to the <em>authority user</em> of the resource. The authority user of a resource is designated by an <em>authority link</em>. Authority links are the series of reference fields that link a resource eventually to the user's table. An authority link could be a direct reference to a user, or it could traverse multiple subjects. Multiple authority links, and therefore multiple authorities can exist for a resource.</p>
+<p>When a resource is accessed or affected, the authorised user of the request is compared to the <em>authority user</em> of the resource. The authority user of a resource is designated by an <em>authority link</em>. Authority links are the series of reference fields that link a resource eventually to the user's table. An authority link could be a direct reference to a user, or it could traverse multiple tables. Multiple authority links, and therefore multiple authorities can exist for a resource.</p>
 <pre><strong>Eg:</strong> Book > Library > Librarian
   // Each book has an authority field linking to a library which has an authority field linking to a
   // librarian, who therefore is the authority of the book</pre>
