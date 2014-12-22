@@ -2,10 +2,10 @@
 <p>Publish a complete REST API from any MySQL database with authentication, security, and virtual tables built-in.</p>
 
 <h3>Security Model</h3>
-<p>Resty uses the concept of <em>authority</em> to deny/accept access and affect actions on resources and fields.</p>
+<p>Resty uses the concept of <em>authority</em> to deny or allow actions on resources and their fields.</p>
 
 <h5>Authority</h5>
-<p>When a resource is accessed or affected, the authorised user of the request is compared to the <em>authority user</em> of the resource. The authority user of a resource is designated by an <em>authority link</em>. Authority links are the series of reference fields that link a resource eventually to the user's table. An authority link could be a direct reference to a user, or it could traverse multiple tables. Multiple authority links, and therefore multiple authorities can exist for a resource.</p>
+<p>When a resource is accessed or affected, the authorised user of the request is compared to the <em>authority user</em> of the resource. The authority user of a resource is designated by an <em>authority link</em>. Authority links are the series of reference fields that link a resource eventually to the user's table. An authority link could be a direct reference to a user, or it could traverse multiple subjects. Multiple authority links, and therefore multiple authorities can exist for a resource.</p>
 <pre><strong>Eg:</strong> Book > Library > Librarian
   // Each book has an authority field linking to a library which has an authority field linking to a
   // librarian, who therefore is the authority of the book</pre>
@@ -13,22 +13,21 @@
 <pre>{"authority": true}</pre>
 <p>Before a resource is written, read, or deleted, the relationship between the authorised user and the authority user is compared. This is expressed as an array of values, 1 for each authority link:</p>
 <ul>
+  <li><strong>Blocked</strong> - The authorised user is blocked from the authority user</li>
   <li><strong>Public</strong> - The authorised user has no relationship to the authority user</li>
   <li><strong>Private</strong> - The authorised user is the authority user</li>
-  <li><strong>Super</strong> - The authorised user is a super-user of the authority user.</li>
-  <li><strong>Sub</strong> - The authorised user is a sub-user of the authority user.</li>
-  <li><strong>Semi</strong> - The authorised user is a semi-user of the authority user.</li>
-  <li><strong>Blocked</strong> - The authorised user is blocked from the authority user.</li>
+  <li><strong>Super</strong> - The authorised user is a super-user of the authority user</li>
+  <li><strong>Sub</strong> - The authorised user is a sub-user of the authority user</li>
+  <li><strong>Semi</strong> - The authorised user is a semi-user of the authority user</li>
 </ul>
 
 <h5>Security Policies</h5>
-<p>A policy is simply an array of allowable relationships that can access/affect the resource. Policies are associated with subject's and field's to regulate access or affect different parts of a resource. Policies are specified in the subject's or field's meta:</p>
+<p>A policy is simply an array of allowable relationships that regulate a user's ability to access or affect the resource. Policies are specified in the subject's or field's meta:</p>
 <pre>{"access-policy": ["private", "sub"]}
   // Both the owner and sub-users of the owner can access these resources</pre>
-<p>Only 1 relationship needs to match any of the relationships specified in the policy to pass each security checkpoint. When the authorised user has a blocked relationship with any authority user, this will always result in the action being denied.</p>
 
 <h5>Security Checkpoints</h5>
-<p>Each action has a series of checkpoints where the action will be allowed or denied. Each checkpoint produces a relationship, and then compares it to the relevant security policy:</p>
+<p>Each action has a series of checkpoints where the action will be allowed or denied. A checkpoint produces a relationship, and then compares it to the relevant security policy. Only 1 relationship needs to match any of the relationships specified in the policy to pass each security checkpoint. When the authorised user has a blocked relationship with any authority user, this will always result in the action being denied.</p>
 <ul>
   <li>
     <code>GET</code>
