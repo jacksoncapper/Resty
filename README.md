@@ -2,7 +2,7 @@
 <p>Publish a complete REST API from any MySQL database with authentication, security, and virtual tables built-in.</p>
 
 <h3>Security Model</h3>
-<p>Resty uses an built-in, customiseable methodology for denying or allowing actions on resources and their fields.</p>
+<p>Resty uses a built-in, customiseable methodology for denying or allowing actions on resources and their fields.</p>
 
 <h5>Authority</h5>
 <p>When a resource is accessed or affected, the authorised user of the request is compared to the <em>authority user</em> of the resource. The authority user of a resource is designated by an <em>authority link</em>. Authority links are the series of reference fields that link a resource eventually to the user's table. An authority link could be a direct reference to a user, or it could traverse multiple tables. Multiple authority links, and therefore multiple authorities can exist for a resource.</p>
