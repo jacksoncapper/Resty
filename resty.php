@@ -398,11 +398,11 @@
 							continue;
 					}
 					else{
-						// Security: Get Set-Affect Relationship
+						// Security: Get Reference Relationship
 						$referenceSchema = getSchema($field->referenceSubject);
 						$referenceRelationship = getRelationship($referenceSchema, $item->{$name});
 
-						// Security: Check Access Policy
+						// Security: Check Reference Access Policy
 						$accessPolicy = $referenceSchema->{"access-policy"};
 						if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$field->referenceSubject}, "access-policy")){
 							$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$field->referenceSubject}->{"access-policy"}, $id, $options, $relationship);
