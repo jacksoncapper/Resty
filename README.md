@@ -25,7 +25,7 @@
 <p>Relationships can be overriden by implementing the <code>relationship</code> function in the API object.</p>
 
 <h5>Security Policies</h5>
-<p>A policy is an array of allowable relationships used to authorise a user to act on a resource. Different types of policies are used for various stages of authorisation:
+<p>A policy is an array of allowable relationships used to authorise a user's action on a resource. Different types of policies are used for various stages of authorisation:
 <ul>
   <li><strong>Access Policy</strong> - Determines if the user can access the resource</li>
   <li><strong>Affect Policy</strong> - Determines if the user can affect the resource</li>
