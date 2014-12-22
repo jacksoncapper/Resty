@@ -25,7 +25,15 @@
 <p>Relationships can be overriden by implementing the <code>relationship</code> function in the API object.</p>
 
 <h5>Security Policies</h5>
-<p>A policy is simply an array of allowable relationships that regulate a user's ability to access or affect the resource. Policies are specified in the subject's or field's meta:</p>
+<p>A policy is an array of allowable relationships used to authorise a user to act on a resource. Different types of policies are used for various stages of authorisation:
+<ul>
+  <li><strong>Access Policy</strong> - Determines if the user can access the resource</li>
+  <li><strong>Affect Policy</strong> - Determines if the user can affect the resource</li>
+  <li><strong>Get Policy</strong> - Determines if the user can get a resource's field</li>
+  <li><strong>Set Policy</strong> - Determines if the user can set a resource's field</li>
+  <li><strong>Reference Policy</strong> - Determines if the user can reference to a resource</li>
+</ul>
+<p>Policies are specified in the subject's or field's meta:</p>
 <pre>{"access-policy": ["private", "sub"]}
   // Both the owner and sub-users of the owner can access these resources</pre>
 <p>Security policies can be overridden by implementing the <code>[policy type]-policy</code> function in the API object.</p>
