@@ -22,13 +22,13 @@
   <li><strong>Sub</strong> - The user is a sub-user of the authority</li>
   <li><strong>Semi</strong> - The user is a semi-user of the authority</li>
 </ul>
-<p>Relationships can be overriden by implementing the <code>relationship</code> function in the API object overriding the default relationship algorithm.</p>
+<p>Relationships can be overriden by implementing the <code>relationship</code> function in the API object.</p>
 
 <h5>Security Policies</h5>
 <p>A policy is simply an array of allowable relationships that regulate a user's ability to access or affect the resource. Policies are specified in the subject's or field's meta:</p>
 <pre>{"access-policy": ["private", "sub"]}
   // Both the owner and sub-users of the owner can access these resources</pre>
-<p>Security policies can be overridden by implementing the <code>[policy type]-policy</code> function in the API object overriding the default policy.</p>
+<p>Security policies can be overridden by implementing the <code>[policy type]-policy</code> function in the API object.</p>
 
 <h5>Security Checkpoints</h5>
 <p>Each action has a series of checkpoints where the action will be allowed or denied. A checkpoint produces a relationship, and then compares it to the relevant security policy. Only one relationship needs to match any of the relationships specified in the policy to pass each security checkpoint. When the user has a blocked relationship with any authority, this will always result in the action being denied.</p>
