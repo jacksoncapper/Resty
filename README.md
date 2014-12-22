@@ -39,7 +39,7 @@
 <p>Security policies can be overridden by implementing the <code>[policy type]-policy</code> function in the API object.</p>
 
 <h5>Security Checkpoints</h5>
-<p>Each action type involves various security checkpoints where it could be allowed or denied. A checkpoint produces a relationship, and then compares it to the relevant security policy. Only one relationship needs to match any of those specified in the policy to pass the checkpoint. If the user has a blocked relationship with any authority, this will always result in the action being denied.</p>
+<p>Each action type involves various security checkpoints where it could be allowed or denied. A checkpoint produces a relationship, and then compares it to the relevant security policy. Only one relationship needs to match any of those specified in the policy to pass the checkpoint.</p>
 <ul>
   <li>
     GET
@@ -84,7 +84,7 @@
     </ol>
   </li>
 </ul>
-<p>Fields checkpoints are processed independantly of the other fields, even if there is a denial.</p>
+<p>If the user has a blocked relationship with any authority, this will always result in the action being denied. Fields checkpoints are processed independantly of the other fields, even if there is a denial.</p>
 
 <h3>License</h3>
 <p>Copyright © 2014 - Jackson Capper<br/><a href='https://github.com/jacksoncapper' target='_blank'>https://github.com/jacksoncapper</a></p>
