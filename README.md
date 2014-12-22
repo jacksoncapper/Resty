@@ -39,7 +39,7 @@
 <p>Security policies can be overridden by implementing the <code>[policy type]-policy</code> function in the API object.</p>
 
 <h5>Security Checkpoints</h5>
-<p>Each action type involves various security checkpoints where it could be allowed or denied. A checkpoint produces a relationship, and then compares it to the relevant security policy. Only one relationship needs to match any of those specified in the policy to pass the checkpoint.</p>
+<p>Each action type involves multiple security checkpoints where it could be allowed or denied. A checkpoint produces a relationship, and then compares it to the relevant security policy. Only one relationship needs to match any of those specified in the policy to pass the checkpoint.</p>
 <ul>
   <li>
     GET
