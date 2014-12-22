@@ -11,6 +11,8 @@
   // librarian, who therefore is the authority of the book</pre>
 <p>Reference fields which denote an authority link can be specified in the field's meta:</p>
 <pre>{"authority": true}</pre>
+
+<h5>Relationship</h5>
 <p>The authorised user's relationship to the authenticated user is expressed as an array of values, one for each authority link:</p>
 <ul>
   <li><strong>Blocked</strong> - The authorised user is blocked from the authority user</li>
