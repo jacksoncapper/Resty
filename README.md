@@ -2,7 +2,7 @@
 <p>Publish a complete REST API from any MySQL database with authentication, security, and virtual tables built-in.</p>
 
 <h3>Security Model</h3>
-<p>Resty uses the concept of <em>authority</em> to deny or allow actions on resources and their fields.</p>
+<p>Resty uses an built-in, customiseable methodology for denying or allowing actions on resources and their fields.</p>
 
 <h5>Authority</h5>
 <p>When a resource is accessed or affected, the authorised user of the request is compared to the <em>authority user</em> of the resource. The authority user of a resource is designated by an <em>authority link</em>. Authority links are the series of reference fields that link a resource eventually to the user's table. An authority link could be a direct reference to a user, or it could traverse multiple tables. Multiple authority links, and therefore multiple authorities can exist for a resource.</p>
@@ -22,11 +22,13 @@
   <li><strong>Sub</strong> - The authorised user is a sub-user of the authority user</li>
   <li><strong>Semi</strong> - The authorised user is a semi-user of the authority user</li>
 </ul>
+<p>Relationships can be overriden by implementing the <code>relationship</code> function in the API object overriding the default relationship algorithm.</p>
 
 <h5>Security Policies</h5>
 <p>A policy is simply an array of allowable relationships that regulate a user's ability to access or affect the resource. Policies are specified in the subject's or field's meta:</p>
 <pre>{"access-policy": ["private", "sub"]}
   // Both the owner and sub-users of the owner can access these resources</pre>
+<p>Security policies can be overridden by implementing the <code>[policy type]-policy</code> function in the API object overriding the default policy.</p>
 
 <h5>Security Checkpoints</h5>
 <p>Each action has a series of checkpoints where the action will be allowed or denied. A checkpoint produces a relationship, and then compares it to the relevant security policy. Only one relationship needs to match any of the relationships specified in the policy to pass each security checkpoint. When the authorised user has a blocked relationship with any authority user, this will always result in the action being denied.</p>
