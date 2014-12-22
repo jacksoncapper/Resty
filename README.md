@@ -5,7 +5,7 @@
 <p>Resty uses a built-in, customiseable methodology for denying or allowing actions on resources and their fields.</p>
 
 <h5>Authority</h5>
-<p>When a resource is accessed or affected, the authorised user of the request is compared to the <em>authority user</em> of the resource. The authority user of a resource is designated by an <em>authority link</em>. Authority links are the series of reference fields that link a resource eventually to the user's table. An authority link could be a direct reference to a user, or it could traverse multiple tables. Multiple authority links, and therefore multiple authorities can exist for a resource.</p>
+<p>When a resource is accessed or affected, the user of the request is compared to the <em>authority</em> of the resource. The authority of a resource is a user designated by an <em>authority link</em>. Authority links are the series of reference fields that link a resource eventually to the user's table. An authority link could be a direct reference to a user, or it could traverse multiple tables. Multiple authority links, and therefore multiple authorities can exist for a resource.</p>
 <pre><strong>Eg:</strong> Book > Library > Librarian
   // Each book has an authority field linking to a library which has an authority field linking to a
   // librarian, who therefore is the authority of the book</pre>
@@ -13,14 +13,14 @@
 <pre>{"authority": true}</pre>
 
 <h5>Relationship</h5>
-<p>The authorised user's relationship to the authenticated user is expressed as an array of values, one for each authority link:</p>
+<p>The user's relationship to the authority is expressed as an array of values, one for each authority link:</p>
 <ul>
-  <li><strong>Blocked</strong> - The authorised user is blocked from the authority user</li>
-  <li><strong>Public</strong> - The authorised user has no relationship to the authority user</li>
-  <li><strong>Private</strong> - The authorised user is the authority user</li>
-  <li><strong>Super</strong> - The authorised user is a super-user of the authority user</li>
-  <li><strong>Sub</strong> - The authorised user is a sub-user of the authority user</li>
-  <li><strong>Semi</strong> - The authorised user is a semi-user of the authority user</li>
+  <li><strong>Blocked</strong> - The user is blocked from the authority</li>
+  <li><strong>Public</strong> - The user has no relationship to the authority</li>
+  <li><strong>Private</strong> - The user is the authority</li>
+  <li><strong>Super</strong> - The user is a super-user of the authority</li>
+  <li><strong>Sub</strong> - The user is a sub-user of the authority</li>
+  <li><strong>Semi</strong> - The user is a semi-user of the authority</li>
 </ul>
 <p>Relationships can be overriden by implementing the <code>relationship</code> function in the API object overriding the default relationship algorithm.</p>
 
@@ -31,7 +31,7 @@
 <p>Security policies can be overridden by implementing the <code>[policy type]-policy</code> function in the API object overriding the default policy.</p>
 
 <h5>Security Checkpoints</h5>
-<p>Each action has a series of checkpoints where the action will be allowed or denied. A checkpoint produces a relationship, and then compares it to the relevant security policy. Only one relationship needs to match any of the relationships specified in the policy to pass each security checkpoint. When the authorised user has a blocked relationship with any authority user, this will always result in the action being denied.</p>
+<p>Each action has a series of checkpoints where the action will be allowed or denied. A checkpoint produces a relationship, and then compares it to the relevant security policy. Only one relationship needs to match any of the relationships specified in the policy to pass each security checkpoint. When the user has a blocked relationship with any authority, this will always result in the action being denied.</p>
 <ul>
   <li>
     GET
