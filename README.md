@@ -5,54 +5,74 @@
 <p>Resty uses the concept of <em>authority</em> to deny/accept access and affect actions on resources and fields.</p>
 
 <h5>Authority</h5>
-<p>When a resource is accessed or affected, the authorised user of the request is compared to the <em>authority user</em> of the resource. The authority user of a resource is designated by any reference field that has an <em>authority link</em> to a user in the user's table. Authority links are the series of reference fields that link a resource eventually to the user's table, and to an authority user. An authority link could be a direct reference to a user, or it could traverse multiple tables.</p>
+<p>When a resource is accessed or affected, the authorised user of the request is compared to the <em>authority user</em> of the resource. The authority user of a resource is designated by an <em>authority link</em>. Authority links are the series of reference fields that link a resource eventually to the user's table. An authority link could be a direct reference to a user, or it could traverse multiple tables. Multiple authority links, and therefore multiple authorities can exist for a resource.</p>
 <pre><strong>Eg:</strong> Book > Library > Librarian
-  // Each book has an authority field linking to a
-  // library which has an authority field linking to
-  // a librarian, who therefore is the authority of
-  // the book</pre>
+  // Each book has an authority field linking to a library which has an authority field linking to a
+  // librarian, who therefore is the authority of the book</pre>
 <p>Reference fields which denote an authority link can be specified in the field's meta:</p>
 <pre>{"authority": true}</pre>
-
-<h5></h5>
-<p>Before a resource is written, read, or deleted, the relationships between the current user and the resource is determined. This can result in 5 possible relationships:</p>
+<p>Before a resource is written, read, or deleted, the relationship between the authorised user and the authority user is compared. This is expressed as an array of values, 1 for each authority link:</p>
 <ul>
-  <li><strong>None</strong> - The resource has no relationship to the user
-  <li><strong>Private</strong> - The resource is owned by the current user</li>
-  <li><strong>Super</strong> - The resource is owned by a superuser of the current user</li>
-  <li><strong>Sub</strong> - The resource is owned by a subuser of the current user</li>
-  <li><strong>Semi</strong> - The resource is owned by a semiuser of the current user</li>
+  <li><strong>Public</strong> - The authorised user has no relationship to the authority user</li>
+  <li><strong>Private</strong> - The authorised user is the authority user</li>
+  <li><strong>Super</strong> - The authorised user is a super-user of the authority user.</li>
+  <li><strong>Sub</strong> - The authorised user is a sub-user of the authority user.</li>
+  <li><strong>Semi</strong> - The authorised user is a semi-user of the authority user.</li>
+  <li><strong>Blocked</strong> - The authorised user is blocked from the authority user.</li>
 </ul>
 
-<h5>2. Check Resource's Access Policy</h5>
-<p>The user relationship is compared to the subject's <em>access policy</em>. A policy is simply an array of allowable relationships that can access the resource. This can be specified in the subject's meta:</p>
-<pre>{"access": ["private", "sub"]}
+<h5>Security Policies</h5>
+<p>A policy is simply an array of allowable relationships that can access/affect the resource. Policies are associated with subject's and field's to regulate access or affect different parts of a resource. Policies are specified in the subject's or field's meta:</p>
+<pre>{"access-policy": ["private", "sub"]}
   // Both the owner and sub-users of the owner can access these resources</pre>
-<p>Resty will deal with attempted access to inaccessible resources depending on the action:</p>
+<p>Only 1 relationship needs to match any of the relationships specified in the policy to pass each security checkpoint. When the authorised user has a blocked relationship with any authority user, this will always result in the action being denied.</p>
+
+<h5>Security Checkpoints</h5>
+<p>Each action has a series of checkpoints where the action will be allowed or denied. Each checkpoint produces a relationship, and then compares it to the relevant security policy:</p>
 <ul>
-  <li><strong><code>GET (BROWSE)</code></strong> - Resource is simply omitted</li>
-  <li><strong><code>GET, POST, PUT, DELETE</code></strong> - 404 Not Found Error</li>
+  <li>
+    <code>GET</code>
+    <ol>
+      <li><strong>Relationship:</strong> against resource's authority</li>
+      <li><strong>Access Checkpoint:</strong> against subject's access policy</li>
+      <li>
+        For each field:
+        <ol>
+          <li><strong>Get Checkpoint:</strong> against field's get policy</li>
+        </ol>
+      </li>
+    </ol>
+  </li>
+  <li>
+    <code>POST/PUT</code>
+    <ol>
+      <li><strong>Relationship:</strong> against resource's authority (<code>PUT</code> only)</li>
+      <li><strong>Affect Checkpoint:</strong> against subject's affect policy (<code>PUT</code> only)</li>
+      <li>
+        For each field:
+        <ol>
+          <li><strong>Set Checkpoint:</strong> against field's set policy (<code>PUT</code> only)</li>
+          <li>
+            When a reference field is being set to an existing resource:
+            <ol>
+              <li><strong>Relationship:</strong> against reference resource's authority</li>
+              <li><strong>Access Checkpoint:</strong> against reference subject's access policy</li>
+              <li><strong>Reference Checkpoint:</strong> against field's reference policy</li>
+            </ol>
+          </li>
+        </ol>
+      </li>
+    </ol>
+  </li>
+  <li>
+    <code>DELETE</code>
+    <ol>
+      <li><strong>Relationship:</strong> against resource's authority</li>
+      <li><strong>Access Checkpoint:</strong> against subject's access policy</li>
+      <li><strong>Affect Checkpoint:</strong> against subject's affect policy</li>
+    </ol>
+  </li>
 </ul>
-
-<h5>3. Check Resource's Affect Policy</h5>
-<p>If the action is a <code>PUT</code>, <code>POST</code>/<code>PUT</code>, or <code>DELETE</code> request, the relationship is compared to the subject's <em>affect policy</em>. This can be specified in the subject's meta:</p>
-<pre>{"affect": ["private", "semi"]}
-  // Both the owner and semi-users of the owner can affect this resource</pre>
-  
-<h5>4. Check Field's Get/Set Policy</h5>
-<p>If the action is a <code>GET</code> or <code>POST</code>/<code>PUT</code>, the <em>get policy</em> or <em>set policy</em> is checked respectively to determine if each field can be get or set. This can be specified in the field's meta:</p>
-<pre>{"get": ["private", "super"], "set": ["private"]}
-  // Both the owner and super-users of the owner can get this field
-  // Only the owner can set this field</pre>
-<p>Where a user isn't permitted to get or set a field, that field is skipped. All other fields will be processed independantly.</p>
-  
-<h5>5. Check Field's Referenced Subject Access Policy</h5>
-<p>If the action is a <code>PUT</code>/<code>POST</code>, and a field is being set to a reference, the reference resource is considered to be being affected. Therefore, the referenced subject of resource's access policy is compared to the relationship.</p>
-<p>Where the user isn't permitted to set a field to a referenced resource, that field is skipped. All other fields will be process independantly.</p>
-
-<h5>6. Check Field's Reference Policy</h5>
-<p>If the action is a <code>PUT</code>/<code>POST</code>, and a field is being set to a reference, the reference resource is considered to be being affected. Therefore, the referenced resource's reference policy is compared to the relationship.</p>
-<p>Where the user isn't permitted to set a field to a referenced resource, that field is skipped. All other fields will be process independantly.</p>
 
 <h3>License</h3>
 <p>Copyright © 2014 - Jackson Capper<br/><a href='https://github.com/jacksoncapper' target='_blank'>https://github.com/jacksoncapper</a></p>
