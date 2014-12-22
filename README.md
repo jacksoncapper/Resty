@@ -2,11 +2,16 @@
 <p>Publish a complete REST API from any MySQL database with authentication, security, and virtual tables built-in.</p>
 
 <h3>Security Model</h3>
-<p>Resty uses the concept of <em>ownership</em> to deny/accept read/write actions on resources and properties. Each action request goes through the following steps:</p>
+<p>Resty uses the concept of <em>authority</em> to deny/accept access and affect actions on resources and fields.</p>
 
-<h5>1. Get Relationship</h5>
-<p>Authority of each resource is designated by foreign key references that link to the users table, or a table that eventually does. Fields that do so are <em>authority fields</em> indicate authority can be specified in the reference field's meta:</p>
+<h5>Authority</h5>
+<p>When a resource is accessed or affected, the authorised user of the request is compared to the <em>authority user</em> of the resource. The authority user of a resource is designated by any reference field that has an <em>authority link</em> to a user in the user's table. Authority links are the series of reference fields that link a resource eventually to the user's table, and to an authority user. An authority link could be a direct reference to a user, or it could traverse multiple tables.</p>
+<pre><strong>Eg:</strong> Book > Library > Librarian<br/>
+  // Each book has an authority field linking to a library which has an authority field linking to a librarian, who therefore is the authority of the book</pre>
+<p>Reference fields which denote an authority link can be specified in the field's meta:</p>
 <pre>{"authority": true}</pre>
+
+<h5></h5>
 <p>Before a resource is written, read, or deleted, the relationships between the current user and the resource is determined. This can result in 5 possible relationships:</p>
 <ul>
   <li><strong>None</strong> - The resource has no relationship to the user
