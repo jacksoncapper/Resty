@@ -6,8 +6,11 @@
 
 <h5>Authority</h5>
 <p>When a resource is accessed or affected, the authorised user of the request is compared to the <em>authority user</em> of the resource. The authority user of a resource is designated by any reference field that has an <em>authority link</em> to a user in the user's table. Authority links are the series of reference fields that link a resource eventually to the user's table, and to an authority user. An authority link could be a direct reference to a user, or it could traverse multiple tables.</p>
-<pre><strong>Eg:</strong> Book > Library > Librarian<br/>
-  // Each book has an authority field linking to a library which has an authority field linking to a librarian, who therefore is the authority of the book</pre>
+<pre><strong>Eg:</strong> Book > Library > Librarian
+  // Each book has an authority field linking to a
+  // library which has an authority field linking to
+  // a librarian, who therefore is the authority of
+  // the book</pre>
 <p>Reference fields which denote an authority link can be specified in the field's meta:</p>
 <pre>{"authority": true}</pre>
 
