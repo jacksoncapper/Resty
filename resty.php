@@ -72,6 +72,13 @@
 		
 			// Nullable
 			$field->nullable = $fieldSql["Null"] == "YES";
+			
+			// Unique
+			$field->unique = $GLOBALS["db"]->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS"
+				. " WHERE TABLE_SCHEMA = " . $GLOBALS["db"]->quote($GLOBALS["resty"]->_database->name)
+				. " AND TABLE_NAME = " . $GLOBALS["db"]->quote($subject)
+				. " AND CONSTRAINT_NAME = " . $GLOBALS["db"]->quote($fieldSql["Field"])
+				. " AND CONSTRAINT_TYPE='UNIQUE'")->fetch(PDO::FETCH_COLUMN, 0) > 0;
 
 			$schema->fields->{$fieldSql["Field"]} = $field;
 		}
@@ -123,43 +130,54 @@
 	}
 	function getRelationship($schema, $id){
 		if(!property_exists($GLOBALS["resty"], "_users"))
-			return;
+			return array();
 		$relationship = array();
 		if($schema->name == $GLOBALS["resty"]->_users){
-			$usersSchema = $GLOBALS["usersSchema"];
-			// Private
-			if($id == $GLOBALS["authUser"])
+			$apiRelationship = false;
+			if(property_exists($GLOBALS["resty"], "relationship"))
+				$apiRelationship = call_user_func($GLOBALS["resty"]->{"relationship"}, $id);
+			if($apiRelationship !== false)
+				$relationship[] = $apiRelationship;
+			else if($id == $GLOBALS["auth-user"])
 				$relationship[] = "private";
-			else if($field->authority != null){
-				// Super
-				$currentID = $id;
-				while(true){
-					if($currentID == $GLOBALS["authUser"])
-						$relationship[] = "super";
-					else if($currentID === null)
-						break;
-					$currentID = $GLOBALS["db"]->query("SELECT `" . $field->authority . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($currentID))->fetch(PDO::FETCH_COLUMN, 0);
+			else foreach($schema->fields as $fieldName=> $field)
+				if($field->authority === true && $field->referenceSubject == $GLOBALS["resty"]->_users){
+					$userRelationship = "public";
+					// Super
+					$currentID = $id;
+					while(true){
+						if($currentID == $GLOBALS["auth-user"]){
+							$userRelationship = "super";
+							break;
+						}
+						else if($currentID === null)
+							break;
+						$currentID = $GLOBALS["db"]->query("SELECT `" . $fieldName . "` FROM `" . $schema->name . "` WHERE id = " . $GLOBALS["db"]->quote($currentID))->fetch(PDO::FETCH_COLUMN, 0);
+					}
+					// Sub
+					$currentID = $GLOBALS["auth-user"];
+					while(true){
+						if($currentID == $id){
+							$userRelationship = "sub";
+							break;
+						}
+						else if($currentID === null)
+							break;
+						$currentID = $GLOBALS["db"]->query("SELECT `" . $fieldName . "` FROM `" . $schema->name . "` WHERE id = " . $GLOBALS["db"]->quote($currentID))->fetch(PDO::FETCH_COLUMN, 0);
+					}
+					// Semi
+					$meSuperuserID = $GLOBALS["db"]->query("SELECT `" . $fieldName . "` FROM `" . $schema->name . "` WHERE id = " . $GLOBALS["db"]->quote($GLOBALS["auth-user"]))->fetch(PDO::FETCH_COLUMN, 0);
+					$itemSuperuserID = $GLOBALS["db"]->query("SELECT `" . $fieldName . "` FROM `" . $schema->name . "` WHERE id = " . $GLOBALS["db"]->quote($itemSql[$fieldName]))->fetch(PDO::FETCH_COLUMN, 0);
+					if($meSuperuserID === $itemSuperuserID)
+						$userRelationship = "semi";
+					$relationship[] = $userRelationship;
 				}
-				// Sub
-				$currentID = $GLOBALS["authUser"];
-				while(true){
-					if($currentID == $id)
-						return "sub";
-					else if($currentID === null)
-						break;
-					$currentID = $GLOBALS["db"]->query("SELECT `" . $field->authority . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($currentID))->fetch(PDO::FETCH_COLUMN, 0);
-				}
-				// Semi
-				$meSuperuserID = $GLOBALS["db"]->query("SELECT `" . $field->authority . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($GLOBALS["authUser"]))->fetch(PDO::FETCH_COLUMN, 0);
-				$itemSuperuserID = $GLOBALS["db"]->query("SELECT `" . $field->authority . "` FROM `" . $usersSchema->name . "` WHERE id = " . $GLOBALS["db"]->quote($itemSql[$field->authority]))->fetch(PDO::FETCH_COLUMN, 0);
-				if($meSuperuserID === $itemSuperuserID)
-					$relationship[] = "semi";
-			}
 		}
 		else foreach($schema->fields as $fieldName=> $field)
 			if($field->authority === true){
-				$authority = $GLOBALS["db"]->query("SELECT `" . $fieldName . "` FROM `" . $schema->name . "` WHERE `" . $schema->id . "` = " . $GLOBALS["db"]->quote($id))->fetch(PDO::FETCH_COLUMN, 0);
-				$relationship = array_merge($relationship, getRelationship(getSchema($schema->fields->{$fieldName}->referenceSubject), $authority));
+				$authorityId = $GLOBALS["db"]->query("SELECT `" . $fieldName . "` FROM `" . $schema->name . "` WHERE `" . $schema->id . "` = " . $GLOBALS["db"]->quote($id))->fetch(PDO::FETCH_COLUMN, 0);
+				if($authorityId !== null)
+					$relationship = array_merge($relationship, getRelationship(getSchema($schema->fields->{$fieldName}->referenceSubject), $authorityId));
 			}
 		return $relationship;
 	}
@@ -213,7 +231,7 @@
 				if(count($optionNameBits) > 1 && in_array($optionNameBits[1], array_keys((array)$schema->fields))){
 					$field = $schema->fields->{$optionNameBits[1]};
 					if($field->class == "out-reference" && $field->referenceSubject == "users")
-						$options->{$optionName} = $GLOBALS["authUser"];
+						$options->{$optionName} = $GLOBALS["auth-user"];
 				}
 			}
 		if(property_exists($options, "lmt")){
@@ -309,7 +327,7 @@
 				$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
 				$accessPolicy = $apiAccessPolicy === false ? $accessPolicy : $apiAccessPolicy;
 			}
-			if($accessPolicy !== null && !count(array_intersect($relationship, $accessPolicy)))
+			if($accessPolicy !== null && !count(array_intersect($relationship, $accessPolicy)) || in_array("blocked", $relationship))
 				return null;
 
 			// Security: Check Resource Affect Policy
@@ -318,7 +336,7 @@
 				$apiAffectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationship);
 				$affectPolicy = $apiAffectPolicy === false ? $affectPolicy : $apiAffectPolicy;
 			}
-			if($affectPolicy !== null && !count(array_intersect($relationship, $affectPolicy)))
+			if($affectPolicy !== null && !count(array_intersect($relationship, $affectPolicy)) || in_array("blocked", $relationship))
 				return null;
 		}
 		
@@ -351,10 +369,11 @@
 		foreach($schema->fields as $name => $field)
 			if($field->class == "out-reference")
 				if(property_exists($GLOBALS["resty"], "users") && $field->referenceSubject == $GLOBALS["resty"]->_users && property_exists($item, $name) && $item->{$name} == "_me")
-					$item->{$name} = array_key_exists("authUser", $GLOBALS) ? $GLOBALS["authUser"] : null;
+					$item->{$name} = array_key_exists("auth-user", $GLOBALS) ? $GLOBALS["auth-user"] : null;
 
 		// Set
 		$setSql = "";
+		$duplicates = array();
 		foreach($schema->fields as $name => $field)
 			if(property_exists($item, $name) || property_exists($attachments, $name)){
 				
@@ -365,18 +384,18 @@
 						$apiSetPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"set-policy"}, $id, $item, $attachments, $name, $relationship);
 						$setPolicy = $apiSetPolicy === false ? $setPolicy : $apiSetPolicy;
 					}
-					if($setPolicy !== null && !count(array_intersect($relationship, $setPolicy)))
+					if($setPolicy !== null && !count(array_intersect($relationship, $setPolicy)) || in_array("blocked", $relationship))
 						continue;
 				}
 				
+				$setValue = null;
 				if($field->class == "value")
-					$setSql .= ($setSql != "" ? ", " : "") . "`" . $name . "` = " . ($item->{$name} === null ? "NULL" : $GLOBALS["db"]->quote($item->{$name}));
+					$setValue = $item->{$name};
 				else if($field->class == "out-reference"){
 					if(is_object($item->{$name})){
-						$outID = applyItem($field->referenceSubject, null, $item->{$name});
-						if($outID === null)
+						$setValue = applyItem($field->referenceSubject, null, $item->{$name});
+						if($setValue === null)
 							continue;
-						$setSql .= ($setSql != "" ? ", " : "") . "`" . $name . "` = " . $GLOBALS["db"]->quote($outID);
 					}
 					else{
 						// Security: Get Set-Affect Relationship
@@ -389,24 +408,40 @@
 							$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$field->referenceSubject}->{"access-policy"}, $id, $options, $relationship);
 							$accessPolicy = $apiAccessPolicy === false ? $accessPolicy : $apiAccessPolicy;
 						}
-						if($accessPolicy !== null && !count(array_intersect($referenceRelationship, $accessPolicy)))
+						if($accessPolicy !== null && !count(array_intersect($referenceRelationship, $accessPolicy)) || in_array("blocked", $referenceRelationship))
 							return null;
-
+						
 						// Security: Check Field Reference Policy
 						$referencePolicy = $field->{"reference-policy"};
 						if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "reference-policy")){
 							$apiReferencePolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"reference-policy"}, $id, $item, $attachments, $name, $relationship);
 							$referencePolicy = $apiReferencePolicy === false ? $referencePolicy : $apiReferencePolicy;
 						}
-						if($referencePolicy !== null && !count(array_intersect($referenceRelationship, $referencePolicy)))							
+						if($referencePolicy !== null && !count(array_intersect($referenceRelationship, $referencePolicy)) || in_array("blocked", $referenceRelationship))
 							continue;
 
-						$setSql .= ($setSql != "" ? ", " : "") . "`" . $name . "` = " . ($item->{$name} === null ? "NULL" : $GLOBALS["db"]->quote($item->{$name}));
+						$setValue = $item->{$name};
 					}
 				}
 				else if($field->class == "file")
-					$setSql .= ($setSql != "" ? ", " : "") . "`" . $name . "` = " . (property_exists($attachments, $name) ? $GLOBALS["db"]->quote($attachments->{$name}->extension) : "NULL");
+					$setValue = property_exists($attachments, $name) ? $GLOBALS["db"]->quote($attachments->{$name}->extension) : null;
+				
+				// Duplicate check
+				if($field->unique)
+					if($GLOBALS["db"]->query("SELECT COUNT(*) FROM `" . $schema->name
+						. "` WHERE `" . $name . "` = " . $GLOBALS["db"]->quote($setValue)
+						. ($id !== null ? " AND `" . $schema->id . "` <> " . $GLOBALS["db"]->quote($id) : ""))->fetch(PDO::FETCH_COLUMN, 0) > 0)
+						$duplicates[] = $name;
+
+				$setSql .= ($setSql != "" ? ", " : "") . "`" . $name . "` = " . ($setValue === null ? "NULL" : $GLOBALS["db"]->quote($setValue));
 			}
+			
+		if(count($duplicates) > 0){
+			header("HTTP/1.1 409 Conflict");
+			header("Content-Type: text/json");
+			echo(json_encode($duplicates));
+			exit;
+		}
 
 		if(property_exists($schema, "id"))
 			$action = $id === null ? "INSERT" : "UPDATE";
@@ -486,7 +521,7 @@
 			$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
 			$accessPolicy = $apiAccessPolicy === false ? $accessPolicy : $apiAccessPolicy;
 		}
-		if($accessPolicy !== null && !count(array_intersect($relationship, $accessPolicy)))
+		if($accessPolicy !== null && !count(array_intersect($relationship, $accessPolicy)) || in_array("blocked", $relationship))
 			return null;
 
 		// Get
@@ -510,7 +545,7 @@
 				$apiGetPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"get-policy"}, $id, $options, $relationship, $name);
 				$getPolicy = $apiGetPolicy === false ? $getPolicy : $apiGetPolicy;
 			}
-			if($getPolicy !== null && !count(array_intersect($relationship, $getPolicy)))
+			if($getPolicy !== null && !count(array_intersect($relationship, $getPolicy)) || in_array("blocked", $relationship))
 				continue;
 			
 			if($field->class == "value"){
@@ -588,7 +623,7 @@
 			$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"access-policy"}, $id, $options, $relationship);
 			$accessPolicy = $apiAccessPolicy === false ? $accessPolicy : $apiAccessPolicy;
 		}
-		if($accessPolicy !== null && !count(array_intersect($relationship, $accessPolicy)))
+		if($accessPolicy !== null && !count(array_intersect($relationship, $accessPolicy)) || in_array("blocked", $relationship))
 			return null;
 
 		// Security: Check Resource Affect Policy
@@ -597,7 +632,7 @@
 			$apiAffectPolicy = call_user_func($GLOBALS["resty"]->{$subject}->{"affect-policy"}, $id, new stdClass(), $relationship);
 			$affectPolicy = $apiAffectPolicy === false ? $affectPolicy : $apiAffectPolicy;
 		}
-		if($affectPolicy !== null && !count(array_intersect($relationship, $affectPolicy)))
+		if($affectPolicy !== null && !count(array_intersect($relationship, $affectPolicy)) || in_array("blocked", $relationship))
 			return null;
 		
 		// Delete
@@ -647,13 +682,12 @@
 			$resty->_users = "users";
 	}
 	$GLOBALS["url"] = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://" . $_SERVER["HTTP_HOST"] . "/" . $GLOBALS["resty"]->_path;
-	if(property_exists($GLOBALS["resty"], "_users")){
-		$GLOBALS["usersSchema"] = $usersSchema = getSchema($GLOBALS["resty"]->_users);
-		$GLOBALS["authUser"] = null;
-	}
+	if(property_exists($GLOBALS["resty"], "_users"))
+		$GLOBALS["auth-user"] = null;
 
-	// Authentication
+	// Authentication	
 	if(array_key_exists("PHP_AUTH_USER", $_SERVER) && property_exists($GLOBALS["resty"], "_users")){
+		$usersSchema = getSchema($GLOBALS["resty"]->_users);
 		$userSql = $db->query("SELECT `" . $usersSchema->id . "` FROM `" . $GLOBALS["resty"]->_users . "` WHERE `" . $usersSchema->username . "` = " . $db->quote($_SERVER["PHP_AUTH_USER"]))->fetch();
 		if($userSql !== false){
 			$sql = "SELECT id FROM `" . $GLOBALS["resty"]->_users . "` WHERE id = " . $db->quote($userSql[$usersSchema->id]);
@@ -664,7 +698,7 @@
 			$userSql = $db->query($sql)->fetch();
 		}
 		if($userSql !== false)
-			$GLOBALS["authUser"] = $userSql[$usersSchema->id];
+			$GLOBALS["auth-user"] = $userSql[$usersSchema->id];
 		else{
 			header("HTTP/1.1 401 Unauthorized");
 			header("WWW-Authenticate: Basic realm=\"Resty\"");
@@ -777,7 +811,7 @@
 	// Item
 	else if(array_key_exists("__item", $_GET)){
 		if($_GET["__item"] == "_me")
-			$_GET["__item"] = $GLOBALS["authUser"];
+			$_GET["__item"] = $GLOBALS["auth-user"];
 		if($_GET["__item"] === null)
 			header("HTTP/1.1 404 Not Found");
 		else if($_SERVER["REQUEST_METHOD"] == "POST" || $_SERVER["REQUEST_METHOD"] == "PUT"){
