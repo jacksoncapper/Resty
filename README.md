@@ -11,7 +11,7 @@
   // librarian, who therefore is the authority of the book</pre>
 <p>Reference fields which denote an authority link can be specified in the field's meta:</p>
 <pre>{"authority": true}</pre>
-<p>Before a resource is written, read, or deleted, the relationship between the authorised user and the authority user is compared. This is expressed as an array of values, 1 for each authority link:</p>
+<p>Before a resource is written, read, or deleted, the relationship between the authorised user and the authority user is compared. This is expressed as an array of values, one for each authority link:</p>
 <ul>
   <li><strong>Blocked</strong> - The authorised user is blocked from the authority user</li>
   <li><strong>Public</strong> - The authorised user has no relationship to the authority user</li>
@@ -27,7 +27,7 @@
   // Both the owner and sub-users of the owner can access these resources</pre>
 
 <h5>Security Checkpoints</h5>
-<p>Each action has a series of checkpoints where the action will be allowed or denied. A checkpoint produces a relationship, and then compares it to the relevant security policy. Only 1 relationship needs to match any of the relationships specified in the policy to pass each security checkpoint. When the authorised user has a blocked relationship with any authority user, this will always result in the action being denied.</p>
+<p>Each action has a series of checkpoints where the action will be allowed or denied. A checkpoint produces a relationship, and then compares it to the relevant security policy. Only one relationship needs to match any of the relationships specified in the policy to pass each security checkpoint. When the authorised user has a blocked relationship with any authority user, this will always result in the action being denied.</p>
 <ul>
   <li>
     <code>GET</code>
