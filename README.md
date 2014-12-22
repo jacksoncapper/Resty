@@ -34,7 +34,7 @@
 <p>Each action has a series of checkpoints where the action will be allowed or denied. A checkpoint produces a relationship, and then compares it to the relevant security policy. Only one relationship needs to match any of the relationships specified in the policy to pass each security checkpoint. When the authorised user has a blocked relationship with any authority user, this will always result in the action being denied.</p>
 <ul>
   <li>
-    <code>GET</code>
+    GET
     <ol>
       <li><strong>Relationship:</strong> against resource's authority</li>
       <li><strong>Access Checkpoint:</strong> against subject's access policy</li>
@@ -47,14 +47,14 @@
     </ol>
   </li>
   <li>
-    <code>POST/PUT</code>
+    POST/PUT
     <ol>
-      <li><strong>Relationship:</strong> against resource's authority (<code>PUT</code> only)</li>
-      <li><strong>Affect Checkpoint:</strong> against subject's affect policy (<code>PUT</code> only)</li>
+      <li><strong>Relationship:</strong> against resource's authority (PUT only)</li>
+      <li><strong>Affect Checkpoint:</strong> against subject's affect policy (PUT only)</li>
       <li>
         For each field:
         <ol>
-          <li><strong>Set Checkpoint:</strong> against field's set policy (<code>PUT</code> only)</li>
+          <li><strong>Set Checkpoint:</strong> against field's set policy (PUT only)</li>
           <li>
             When a reference field is being set to an existing resource:
             <ol>
@@ -68,7 +68,7 @@
     </ol>
   </li>
   <li>
-    <code>DELETE</code>
+    DELETE
     <ol>
       <li><strong>Relationship:</strong> against resource's authority</li>
       <li><strong>Access Checkpoint:</strong> against subject's access policy</li>
