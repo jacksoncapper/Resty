@@ -31,7 +31,7 @@
   <li><strong>Affect Policy</strong> - Determines if the user can affect the resource</li>
   <li><strong>Get Policy</strong> - Determines if the user can get a resource's field</li>
   <li><strong>Set Policy</strong> - Determines if the user can set a resource's field</li>
-  <li><strong>Reference Policy</strong> - Determines if the user can reference to a resource</li>
+  <li><strong>Reference Policy</strong> - Determines if the user can set a reference field to a resource</li>
 </ul>
 <p>Policies are specified in the subject's or field's meta:</p>
 <pre>{"access-policy": ["private", "sub"]}
