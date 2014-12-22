@@ -15,7 +15,7 @@
 <h5>Relationship</h5>
 <p>The user's relationship to the authority is expressed as an array of values, one for each authority link:</p>
 <ul>
-  <li><strong>Blocked</strong> - The user is blocked from the authority</li>
+  <li><strong>Blocked</strong> - The user is blocked by the authority</li>
   <li><strong>Public</strong> - The user has no relationship to the authority</li>
   <li><strong>Private</strong> - The user is the authority</li>
   <li><strong>Super</strong> - The user is a super-user of the authority</li>
