@@ -5,7 +5,7 @@
 <p>Resty uses the concept of <em>ownership</em> to deny/accept read/write actions on resources and properties. Each action request goes through the following steps:</p>
 
 <h5>1. Get Relationship</h5>
-<p>Authority of each resource is designated by a foreign key reference that links to a user directly, or to a resource that is authorised by a user. Foreign key fields that indicate authority can be specified in the reference field's meta:</p>
+<p>Authority of each resource is designated by foreign key references that link to the users table, or a table that eventually does. Fields that do so are <em>authority fields</em> indicate authority can be specified in the reference field's meta:</p>
 <pre>{"authority": true}</pre>
 <p>Before a resource is written, read, or deleted, the relationships between the current user and the resource is determined. This can result in 5 possible relationships:</p>
 <ul>
