@@ -407,7 +407,7 @@
 				
 				$setValue = null;
 				if($field->class == "value")
-					$setValue = $item->{$name};
+					$setValue = $field->nullable && $item->{$name} == "" ? null : $item->{$name};
 				else if($field->class == "out-reference"){
 					if(is_object($item->{$name})){
 						$setValue = applyItem($field->referenceSubject, null, $item->{$name});
