@@ -128,17 +128,22 @@
 	
 		return $schema;
 	}
-	function getRelationship($schema, $id){
-		if(!property_exists($GLOBALS["resty"], "_users"))
-			return array();
+	function getRelationship($schema, $id, $root = true){
+		if(!property_exists($GLOBALS["resty"], "_users") || $GLOBALS["user"] === null)
+			return array("public");
 		$relationship = array();
 		if($schema->name == $GLOBALS["resty"]->_users){
+			
+			$cacheName = $schema->name . ";" . $id;
+			if($root && property_exists($GLOBALS["relationships-cache"], $cacheName))
+				return $GLOBALS["relationships-cache"]->{$cacheName};
+			
 			$apiRelationship = false;
 			if(property_exists($GLOBALS["resty"], "relationship"))
 				$apiRelationship = call_user_func($GLOBALS["resty"]->{"relationship"}, $id);
 			if($apiRelationship !== false)
 				$relationship[] = $apiRelationship;
-			else if($id == $GLOBALS["auth-user"])
+			else if($id == $GLOBALS["user"])
 				$relationship[] = "private";
 			else foreach($schema->fields as $fieldName=> $field)
 				if($field->authority === true && $field->referenceSubject == $GLOBALS["resty"]->_users){
@@ -146,7 +151,7 @@
 					// Super
 					$currentID = $id;
 					while(true){
-						if($currentID == $GLOBALS["auth-user"]){
+						if($currentID == $GLOBALS["user"]){
 							$userRelationship = "super";
 							break;
 						}
@@ -155,7 +160,7 @@
 						$currentID = $GLOBALS["db"]->query("SELECT `" . $fieldName . "` FROM `" . $schema->name . "` WHERE id = " . $GLOBALS["db"]->quote($currentID))->fetch(PDO::FETCH_COLUMN, 0);
 					}
 					// Sub
-					$currentID = $GLOBALS["auth-user"];
+					$currentID = $GLOBALS["user"];
 					while(true){
 						if($currentID == $id){
 							$userRelationship = "sub";
@@ -166,18 +171,30 @@
 						$currentID = $GLOBALS["db"]->query("SELECT `" . $fieldName . "` FROM `" . $schema->name . "` WHERE id = " . $GLOBALS["db"]->quote($currentID))->fetch(PDO::FETCH_COLUMN, 0);
 					}
 					// Semi
-					$meSuperuserID = $GLOBALS["db"]->query("SELECT `" . $fieldName . "` FROM `" . $schema->name . "` WHERE id = " . $GLOBALS["db"]->quote($GLOBALS["auth-user"]))->fetch(PDO::FETCH_COLUMN, 0);
+					$meSuperuserID = $GLOBALS["db"]->query("SELECT `" . $fieldName . "` FROM `" . $schema->name . "` WHERE id = " . $GLOBALS["db"]->quote($GLOBALS["user"]))->fetch(PDO::FETCH_COLUMN, 0);
 					$itemSuperuserID = $GLOBALS["db"]->query("SELECT `" . $fieldName . "` FROM `" . $schema->name . "` WHERE id = " . $GLOBALS["db"]->quote($itemSql[$fieldName]))->fetch(PDO::FETCH_COLUMN, 0);
 					if($meSuperuserID === $itemSuperuserID)
 						$userRelationship = "semi";
 					$relationship[] = $userRelationship;
 				}
+			
+			if($root)
+				$GLOBALS["relationships-cache"]->{$cacheName} = $relationship;
 		}
 		else foreach($schema->fields as $fieldName=> $field)
 			if($field->authority === true){
 				$authorityId = $GLOBALS["db"]->query("SELECT `" . $fieldName . "` FROM `" . $schema->name . "` WHERE `" . $schema->id . "` = " . $GLOBALS["db"]->quote($id))->fetch(PDO::FETCH_COLUMN, 0);
-				if($authorityId !== null)
-					$relationship = array_merge($relationship, getRelationship(getSchema($schema->fields->{$fieldName}->referenceSubject), $authorityId));
+				if($authorityId !== null){
+					
+					$cacheName = $schema->name . ";" . $fieldName . ";" . $authorityId;
+					if($root && property_exists($GLOBALS["relationships-cache"], $cacheName))
+						return $GLOBALS["relationships-cache"]->{$cacheName};
+					
+					$relationship = array_merge($relationship, getRelationship(getSchema($schema->fields->{$fieldName}->referenceSubject), $authorityId, false));
+					
+					if($root)
+						$GLOBALS["relationships-cache"]->{$cacheName} = $relationship;
+				}
 			}
 		return $relationship;
 	}
@@ -223,7 +240,7 @@
 		$schema = is_object($subject) ? $subject : getSchema($subject);
 		$subject = is_object($subject) ? $schema->name : $subject;
 		$options = $options !== null ? $options : new stdClass();
-
+        
 		// Defaults
 		foreach($options as $optionName => $optionValue)
 			if($optionValue == "_me"){
@@ -231,7 +248,7 @@
 				if(count($optionNameBits) > 1 && in_array($optionNameBits[1], array_keys((array)$schema->fields))){
 					$field = $schema->fields->{$optionNameBits[1]};
 					if($field->class == "out-reference" && $field->referenceSubject == "users")
-						$options->{$optionName} = $GLOBALS["auth-user"];
+						$options->{$optionName} = $GLOBALS["user"];
 				}
 			}
 		if(property_exists($options, "lmt")){
@@ -369,7 +386,7 @@
 		foreach($schema->fields as $name => $field)
 			if($field->class == "out-reference")
 				if(property_exists($GLOBALS["resty"], "users") && $field->referenceSubject == $GLOBALS["resty"]->_users && property_exists($item, $name) && $item->{$name} == "_me")
-					$item->{$name} = array_key_exists("auth-user", $GLOBALS) ? $GLOBALS["auth-user"] : null;
+					$item->{$name} = array_key_exists("user", $GLOBALS) ? $GLOBALS["user"] : null;
 
 		// Set
 		$setSql = "";
@@ -661,6 +678,7 @@
 
 	// Initiate	
 	$GLOBALS["resty"] = $resty;
+	$GLOBALS["relationships-cache"] = new stdClass();
 	if($_SERVER["REQUEST_METHOD"] == "OPTIONS"){
 		header("HTTP/1.1 200 OK");
 		header("Access-Control-Allow-Origin: *");
@@ -683,7 +701,7 @@
 	}
 	$GLOBALS["url"] = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://" . $_SERVER["HTTP_HOST"] . "/" . $GLOBALS["resty"]->_path;
 	if(property_exists($GLOBALS["resty"], "_users"))
-		$GLOBALS["auth-user"] = null;
+		$GLOBALS["user"] = null;
 
 	// Authentication	
 	if(array_key_exists("PHP_AUTH_USER", $_SERVER) && property_exists($GLOBALS["resty"], "_users")){
@@ -698,7 +716,7 @@
 			$userSql = $db->query($sql)->fetch();
 		}
 		if($userSql !== false)
-			$GLOBALS["auth-user"] = $userSql[$usersSchema->id];
+			$GLOBALS["user"] = $userSql[$usersSchema->id];
 		else{
 			header("HTTP/1.1 401 Unauthorized");
 			header("WWW-Authenticate: Basic realm=\"Resty\"");
@@ -811,7 +829,7 @@
 	// Item
 	else if(array_key_exists("__item", $_GET)){
 		if($_GET["__item"] == "_me")
-			$_GET["__item"] = $GLOBALS["auth-user"];
+			$_GET["__item"] = $GLOBALS["user"];
 		if($_GET["__item"] === null)
 			header("HTTP/1.1 404 Not Found");
 		else if($_SERVER["REQUEST_METHOD"] == "POST" || $_SERVER["REQUEST_METHOD"] == "PUT"){
