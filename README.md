@@ -34,7 +34,7 @@
   <li><strong>Reference Policy</strong> - Determines if the user can set a reference field to a resource</li>
 </ul>
 <p>Policies are specified in the subject's or field's meta:</p>
-<pre>{"access-policy": ["private", "sub"]}
+<pre>{"access": ["private", "sub"]}
   // Both the owner and sub-users of the owner can access these resources</pre>
 <p>Security policies can be overridden by implementing the <code>[policy type]-policy</code> function in the API object.</p>
 
