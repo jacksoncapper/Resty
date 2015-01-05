@@ -441,7 +441,7 @@
 					}
 				}
 				else if($field->class == "file")
-					$setValue = property_exists($attachments, $name) ? $GLOBALS["db"]->quote($attachments->{$name}->extension) : null;
+					$setValue = property_exists($attachments, $name) ? $attachments->{$name}->extension : null;
 				
 				// Duplicate check
 				if($field->unique)
@@ -502,17 +502,18 @@
 						}
 						else{
 							// Remove files
-							$directory = $GLOBALS["resty"]->_files . "/" . $schema->name;
+							$directory = $GLOBALS["resty"]->{"_files-local"} . "/" . $schema->name;
 							unlink($directory . "/" . $id . "/" . $name . "." . $item->{$name});
 							if(count(scandir($directory . "/" . $id)) == 2)
 								rmdir($directory . "/" . $id);
 						}
 					
 					if(property_exists($attachments, $name)){
-						$directory = $GLOBALS["resty"]->_files . "/" . $schema->name;
+						$directory = $GLOBALS["resty"]->{"_files-local"} . "/" . $schema->name;
 						if(!file_exists($directory . "/" . $idx))
-							mkdir($directory . "/" . $idx, 0777, true);
+							mkdir($directory . "/" . $idx, 0755, true);
 						rename($attachments->{$name}->interim, $directory . "/" . $idx . "/" . $name . "." . $attachments->{$name}->extension);
+						chmod($directory . "/" . $idx . "/" . $name . "." . $attachments->{$name}->extension, 0755);
 					}
 				}
 		
@@ -580,7 +581,7 @@
 				if($itemSql[$name] === null)
 					$item->{$name} = null;
 				else
-					$item->{$name} = "http://" . $_SERVER["HTTP_HOST"] . "/" . $GLOBALS["resty"]->_files . "/" . $schema->name . "/" . $id . "/" . $name . "." . $itemSql[$name];
+					$item->{$name} = "http://" . $_SERVER["HTTP_HOST"] . "/" . $GLOBALS["resty"]->{"_files-url"} . "/" . $schema->name . "/" . $id . "/" . $name . "." . $itemSql[$name];
 			}
 			else if($field->class == "out-reference"){
 				if($itemSql[$name] === null)
@@ -663,8 +664,8 @@
 		// Remove files
 		foreach($schema->fields as $name => $field)
 			if($field->class == "file"){
-				$directory = $GLOBALS["resty"]->_files . "/" . $schema->name;
-				unlink($directory . "/" . $id . "/" . $name . "." . $item->{$name});
+				$directory = $GLOBALS["resty"]->{"_files-local"} . "/" . $schema->name;
+				unlink($directory . "/" . $id . "/" . $name . "." . pathinfo($item->{$name}, PATHINFO_EXTENSION));
 				if(count(scandir($directory . "/" . $id)) == 2)
 					rmdir($directory . "/" . $id);
 			}
@@ -699,7 +700,7 @@
 			. " AND TABLE_NAME = 'users'")->fetch(PDO::FETCH_COLUMN) > 0)
 			$resty->_users = "users";
 	}
-	$GLOBALS["url"] = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://" . $_SERVER["HTTP_HOST"] . "/" . $GLOBALS["resty"]->_path;
+	$GLOBALS["url"] = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://" . $_SERVER["HTTP_HOST"] . "/" . $GLOBALS["resty"]->{"_api-url"};
 	if(property_exists($GLOBALS["resty"], "_users"))
 		$GLOBALS["user"] = null;
 
@@ -744,7 +745,7 @@
 				$post = $postString;
 		}
 	}
-
+	
 	// Files
 	$files = new stdClass();
 	if(count($_FILES) > 0){
@@ -776,7 +777,7 @@
 		fclose($putdata);
 		$files->file = $file;
 	}
-	
+
 	// Schema
 	if(array_key_exists("__subject", $_GET) && $_GET["__subject"] != "_schemas")
 		$schema = getSchema($_GET["__subject"]);
