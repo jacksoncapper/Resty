@@ -274,28 +274,24 @@
 
 		$whereSql = $customWhereSql;		
 		foreach($schema->fields as $name => $field)
-			if($field->class == "value" || $field->class == "out-reference")
+			if($field->class == "value" || $field->class == "out-reference"){
 				if(property_exists($options, "rgx:" . $name))
 					$whereSql .= " AND `" . $name . "` " . ($options->{"rgx:" . $name} == "" ? "IS NULL" : " REGEXP " . $GLOBALS["db"]->quote($options->{"rgx:" . $name}));
-				else if(property_exists($options, "is:" . $name))
+				if(property_exists($options, "rgx"))
+					$whereSql .= " AND `" . $name . "` " . ($options->rgx == "" ? "IS NULL" : " REGEXP " . $GLOBALS["db"]->quote($options->rgx));
+				if(property_exists($options, "is:" . $name))
 					$whereSql .= " AND `" . $name . "` " . ($options->{"is:" . $name} == "" ? "IS NULL" : " = " . $GLOBALS["db"]->quote($options->{"is:" . $name}));
-				else if(property_exists($options, "lt:" . $name))
+				if(property_exists($options, "lt:" . $name))
 					$whereSql .= " AND `" . $name . "` " . ($options->{"lt:" . $name} == "" ? "IS NULL" : " < " . $GLOBALS["db"]->quote($options->{"lt:" . $name}));
-				else if(property_exists($options, "lte:" . $name))
+				if(property_exists($options, "lte:" . $name))
 					$whereSql .= " AND `" . $name . "` " . ($options->{"lte:" . $name} == "" ? "IS NULL" : " <= " . $GLOBALS["db"]->quote($options->{"lte:" . $name}));
-				else if(property_exists($options, "gt:" . $name))
+				if(property_exists($options, "gt:" . $name))
 					$whereSql .= " AND `" . $name . "` " . ($options->{"gt:" . $name} == "" ? "IS NULL" : " > " . $GLOBALS["db"]->quote($options->{"gt:" . $name}));
-				else if(property_exists($options, "gte:" . $name))
+				if(property_exists($options, "gte:" . $name))
 					$whereSql .= " AND `" . $name . "` " . ($options->{"gte:" . $name} == "" ? "IS NULL" : " >= " . $GLOBALS["db"]->quote($options->{"gte:" . $name}));
-				else if(property_exists($options, "isn:" . $name))
+				if(property_exists($options, "isn:" . $name))
 					$whereSql .= " AND `" . $name . "` " . ($options->{"isn:" . $name} == "" ? "IS NULL" : " <> " . $GLOBALS["db"]->quote($options->{"isn:" . $name}));
-		if(property_exists($options, "rgx") && $options->rgx != ""){
-			$whereSql .= " AND (FALSE";
-			foreach($schema->fields as $name => $field)
-				if($field->class == "value" || $field->class == "out-reference")
-					$whereSql .= " OR `" . $name . "` REGEXP " . $GLOBALS["db"]->quote($options->rgx);
-			$whereSql .= ")";
-		}
+			}
 
 		$limitSql = "";
 		if(property_exists($options, "lmt"))
@@ -310,6 +306,29 @@
 		foreach($GLOBALS["db"]->query("SELECT `" . $schema->id . "` FROM `" . $subject . "` WHERE TRUE" . $whereSql . $orderSql . $limitSql) as $itemSql){
 			$suboptions = (object)(array)$options;
 			$item = getItem($schema, $itemSql[$schema->id], $suboptions);
+			
+			// Post-get Fields Check
+			if($item !== null)
+				foreach($item as $name => $value)
+					if(!is_object($value) && !is_array($value)){
+						if(property_exists($options, "rgx:" . $name))
+							$item = preg_match($options->{"rgx:" . $name}, $value) > 0 ? $item : null;
+						if(property_exists($options, "rgx"))
+							$item = preg_match($options->rgx, $value) > 0 ? $item : null;
+						if(property_exists($options, "is:" . $name))
+							$item = $options->{"is:" . $name} == $value ? $item : null;
+						if(property_exists($options, "lt:" . $name))
+							$item = $value < $options->{"lt:" . $name} ? $item : null;
+						if(property_exists($options, "lte:" . $name))
+							$item = $value <= $options->{"lte:" . $name} ? $item : null;
+						if(property_exists($options, "gt:" . $name))
+							$item = $value > $options->{"gt:" . $name} ? $item : null;
+						if(property_exists($options, "gte:" . $name))
+							$item = $value >= $options->{"gt:" . $name} ? $item : null;
+						if(property_exists($options, "isn:" . $name))
+							$item = $options->{"is:" . $name} != $value ? $item : null;
+					}
+
 			if($item !== null)
 				$items->items[] = $item;
 			else
