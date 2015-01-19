@@ -896,20 +896,26 @@
 	// Subject
 	else if(array_key_exists("__subject", $_GET)){
 		if($_SERVER["REQUEST_METHOD"] == "POST" || $_SERVER["REQUEST_METHOD"] == "PUT"){
-			if($_GET["__subject"] == "_lost"){
-				$browse = browseSubject($GLOBALS["resty"]->_users, $get);
-				if(count($browse->items) >= 1){
-					if(property_exists($resty, "_email") && property_exists($resty->_email, "lost")){
-						$usersSchema = getSchema($resty->_users);
-						$id = $browse->items[0]->{$usersSchema->id};
-						$email = $browse->items[0]->{$usersSchema->email};
-						$subject = interceptTags($resty->_email->lost->subject, $browse->items[0], true);
-						$tempPasscode = generateID(5);
-						$encryptedTempPasscode = $usersSchema->fields->{$usersSchema->passcode}->encrypt ? md5($tempPasscode . $id) : $tempPasscode;
-						$GLOBALS["db"]->exec("UPDATE `" . $usersSchema->name . "` SET `" . $usersSchema->passcode . "` = " . $GLOBALS["db"]->quote($encryptedTempPasscode) . " WHERE `" . $usersSchema->id . "` = " . $GLOBALS["db"]->quote($id));
-						$body = interceptTags($resty->_email->lost->body, (object)array_merge(array( "temppasscode"=> $tempPasscode ), (array)$browse->items[0]));
-						mail($email, $subject, $body, "content-type:text/html;charset=utf-8");
-					}
+			if($_GET["__subject"] == "_lost" && property_exists($resty, "_email") && property_exists($resty->_email, "lost")){
+				$usersSchema = getSchema($resty->_users);
+				if(array_key_exists("email", $_GET))
+					$whereSql .= " AND `" . $usersSchema->email . "` = " . $GLOBALS["db"]->quote($_GET["email"]);
+				else if(array_key_exists("username", $_GET))
+					$whereSql .= " AND `" . $usersSchema->email . "` = " . $GLOBALS["db"]->quote($_GET["username"]);
+				else if(array_key_exists("username-email", $_GET)){
+					$whereSql .= " AND (`" . $usersSchema->email . "` = " . $GLOBALS["db"]->quote($_GET["username-email"]);
+					$whereSql .= " OR `" . $usersSchema->username . "` = " . $GLOBALS["db"]->quote($_GET["username-email"]) . ")";
+				}
+				$userSql = $GLOBALS["db"]->query("SELECT * FROM `" . $usersSchema->name . "` WHERE 1=1" . $whereSql)->fetch();
+				if($userSql !== false){
+					$id = $userSql[$usersSchema->id];
+					$email = $userSql[$usersSchema->email];
+					$subject = interceptTags($resty->_email->lost->subject, (object)$userSql, true);
+					$tempPasscode = generateID(5);
+					$encryptedTempPasscode = $usersSchema->fields->{$usersSchema->passcode}->encrypt ? md5($tempPasscode . $id) : $tempPasscode;
+					$GLOBALS["db"]->exec("UPDATE `" . $usersSchema->name . "` SET `" . $usersSchema->passcode . "` = " . $GLOBALS["db"]->quote($encryptedTempPasscode) . " WHERE `" . $usersSchema->id . "` = " . $GLOBALS["db"]->quote($id));
+					$body = interceptTags($resty->_email->lost->body, (object)array_merge(array( "temppasscode"=> $tempPasscode ), $userSql));
+					mail($email, $subject, $body, "from:Evolve Skateboards<no-reply@evolveskateboards.com>\r\ncontent-type:text/html;charset=utf-8");
 				}
 				else{
 					header("HTTP/1.1 404 Not Found");
