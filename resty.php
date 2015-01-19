@@ -1,5 +1,10 @@
 <?php
 	function getSchema($subject, $lite = false){
+		if($GLOBALS["db"]->query("SELECT COUNT(*) FROM information_schema.tables"
+			. " WHERE table_schema = " . $GLOBALS["db"]->quote($GLOBALS["resty"]->_database->name)
+			. " AND table_name = " . $GLOBALS["db"]->quote($subject))->fetch(PDO::FETCH_COLUMN, 0) == 0)
+			return null;
+		
 		$schema = new stdClass();
 		$primaryField = $GLOBALS["db"]->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE"
 			. " WHERE CONSTRAINT_NAME = 'PRIMARY'"
@@ -805,7 +810,7 @@
 		$schema = getSchema($_GET["__subject"]);
 	
 	// Subject-to-item
-	if(array_key_exists("__subject", $_GET) && $_GET["__subject"] != "_schemas")
+	if(array_key_exists("__subject", $_GET) && $_GET["__subject"] != "_schemas" && $schema !== null)
 		if(!property_exists($schema, "id")){
 			if(array_key_exists("__item", $_GET))
 				$_GET["__field"] = $_GET["__item"];
