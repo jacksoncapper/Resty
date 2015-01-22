@@ -911,6 +911,10 @@
 					$whereSql .= " AND (`" . $usersSchema->email . "` = " . $GLOBALS["db"]->quote($_GET["username-email"]);
 					$whereSql .= " OR `" . $usersSchema->username . "` = " . $GLOBALS["db"]->quote($_GET["username-email"]) . ")";
 				}
+				else if(array_key_exists("is:email", $_GET))
+					$whereSql .= " AND `" . $usersSchema->email . "` = " . $GLOBALS["db"]->quote($_GET["is:email"]);
+				else if(array_key_exists("is:username", $_GET))
+					$whereSql .= " AND `" . $usersSchema->username . "` = " . $GLOBALS["db"]->quote($_GET["is:username"]);
 				$userSql = $GLOBALS["db"]->query("SELECT * FROM `" . $usersSchema->name . "` WHERE 1=1" . $whereSql)->fetch();
 				if($userSql !== false){
 					$id = $userSql[$usersSchema->id];
@@ -919,8 +923,27 @@
 					$tempPasscode = generateID(5);
 					$encryptedTempPasscode = $usersSchema->fields->{$usersSchema->passcode}->encrypt ? md5($tempPasscode . $id) : $tempPasscode;
 					$GLOBALS["db"]->exec("UPDATE `" . $usersSchema->name . "` SET `" . $usersSchema->passcode . "` = " . $GLOBALS["db"]->quote($encryptedTempPasscode) . " WHERE `" . $usersSchema->id . "` = " . $GLOBALS["db"]->quote($id));
-					$body = interceptTags($resty->_email->lost->body, (object)array_merge(array( "temppasscode"=> $tempPasscode ), $userSql));
-					mail($email, $subject, $body, "from:Evolve Skateboards<no-reply@evolveskateboards.com>\r\ncontent-type:text/html;charset=utf-8");
+					
+					$bodyHtml = property_exists($resty->_email->lost, "body-html") ? interceptTags(file_get_contents($resty->_email->lost->{"body-html"}), (object)array_merge(array( "temppasscode"=> $tempPasscode ), $userSql)) : null;
+					$bodyText = property_exists($resty->_email->lost, "body-text") ? interceptTags(file_get_contents($resty->_email->lost->{"body-text"}), (object)array_merge(array( "temppasscode"=> $tempPasscode ), $userSql)) : null;
+					
+					$boundary = uniqid("np");
+					$headers = "MIME-Version: 1.0\r\n";
+					$headers .= "From: " . $resty->_email->{"from-name"} . "<" . $resty->_email->{"from-email"} . ">\r\n";
+					$headers .= "Content-Type: multipart/alternative;boundary=" . $boundary . "\r\n";
+					$body = "";
+					if($bodyText !== null){
+						$body .= "\r\n\r\n--" . $boundary . "\r\n";
+						$body .= "Content-type: text/plain;charset=utf-8\r\n\r\n";
+						$body .= $bodyText;
+					}
+					if($bodyHtml !== null){
+						$body .= "\r\n\r\n--" . $boundary . "\r\n";
+						$body .= "Content-type: text/html;charset=utf-8\r\n\r\n";
+						$body .= $bodyHtml;
+					}
+					$body .= "\r\n\r\n--" . $boundary . "--";
+					mail($email, $subject, $body, $headers, "-f" . $resty->_email->{"from-email"});
 				}
 				else{
 					header("HTTP/1.1 404 Not Found");
