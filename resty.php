@@ -419,71 +419,72 @@
 		$setSql = "";
 		$duplicates = array();
 		foreach($schema->fields as $name => $field)
-			if(property_exists($item, $name) || property_exists($attachments, $name)){
+			if(property_exists($item, $name) || property_exists($attachments, $name))
+				if($field->class != "in-reference"){
 				
-				// Security: Check Field Set Policy
-				if($id !== null){ 
-					$setPolicy = $field->set;
-					if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "set")){
-						$apiSetPolicy = call_user_func($GLOBALS["resty"]->{$subject}->set, $id, $item, $attachments, $name, $relationship);
-						$setPolicy = $apiSetPolicy === false ? $setPolicy : $apiSetPolicy;
-					}
-					if($setPolicy !== null && !count(array_intersect($relationship, $setPolicy)) || in_array("blocked", $relationship))
-						continue;
-				}
-				
-				// Default null
-				if($field->class == "value" || $field->class == "out-reference")
-					if($field->nullable && $item->{$name} == "")
-						$item->{$name} = null;
-				
-				$setValue = null;
-				if($field->class == "value")
-					$setValue = $item->{$name};
-				else if($field->class == "out-reference"){
-					if(is_object($item->{$name})){
-						$setValue = applyItem($field->referenceSubject, null, $item->{$name});
-						if($setValue === null)
+					// Security: Check Field Set Policy
+					if($id !== null){ 
+						$setPolicy = $field->set;
+						if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "set")){
+							$apiSetPolicy = call_user_func($GLOBALS["resty"]->{$subject}->set, $id, $item, $attachments, $name, $relationship);
+							$setPolicy = $apiSetPolicy === false ? $setPolicy : $apiSetPolicy;
+						}
+						if($setPolicy !== null && !count(array_intersect($relationship, $setPolicy)) || in_array("blocked", $relationship))
 							continue;
 					}
-					else{
-						// Security: Get Reference Relationship
-						$referenceSchema = getSchema($field->referenceSubject);
-						$referenceRelationship = getRelationship($referenceSchema, $item->{$name});
-
-						// Security: Check Reference Access Policy
-						$accessPolicy = $referenceSchema->access;
-						if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$field->referenceSubject}, "access")){
-							$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$field->referenceSubject}->access, $id, $options, $relationship);
-							$accessPolicy = $apiAccessPolicy === false ? $accessPolicy : $apiAccessPolicy;
-						}
-						if($accessPolicy !== null && !count(array_intersect($referenceRelationship, $accessPolicy)) || in_array("blocked", $referenceRelationship))
-							continue;
-						
-						// Security: Check Field Reference Policy
-						$referencePolicy = $field->reference;
-						if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "reference")){
-							$apiReferencePolicy = call_user_func($GLOBALS["resty"]->{$subject}->reference, $id, $item, $attachments, $name, $relationship);
-							$referencePolicy = $apiReferencePolicy === false ? $referencePolicy : $apiReferencePolicy;
-						}
-						if($referencePolicy !== null && !count(array_intersect($referenceRelationship, $referencePolicy)) || in_array("blocked", $referenceRelationship))
-							continue;
-
+				
+					// Default null
+					if($field->class == "value" || $field->class == "out-reference")
+						if($field->nullable && $item->{$name} == "")
+							$item->{$name} = null;
+				
+					$setValue = null;
+					if($field->class == "value")
 						$setValue = $item->{$name};
-					}
-				}
-				else if($field->class == "file")
-					$setValue = property_exists($attachments, $name) ? $attachments->{$name}->extension : null;
-				
-				// Duplicate check
-				if($field->unique)
-					if($GLOBALS["db"]->query("SELECT COUNT(*) FROM `" . $schema->name
-						. "` WHERE `" . $name . "` = " . $GLOBALS["db"]->quote($setValue)
-						. ($id !== null ? " AND `" . $schema->id . "` <> " . $GLOBALS["db"]->quote($id) : ""))->fetch(PDO::FETCH_COLUMN, 0) > 0)
-						$duplicates[] = $name;
+					else if($field->class == "out-reference"){
+						if(is_object($item->{$name})){
+							$setValue = applyItem($field->referenceSubject, null, $item->{$name});
+							if($setValue === null)
+								continue;
+						}
+						else{
+							// Security: Get Reference Relationship
+							$referenceSchema = getSchema($field->referenceSubject);
+							$referenceRelationship = getRelationship($referenceSchema, $item->{$name});
 
-				$setSql .= ($setSql != "" ? ", " : "") . "`" . $name . "` = " . ($setValue === null ? "NULL" : $GLOBALS["db"]->quote($setValue));
-			}
+							// Security: Check Reference Access Policy
+							$accessPolicy = $referenceSchema->access;
+							if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$field->referenceSubject}, "access")){
+								$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$field->referenceSubject}->access, $id, $options, $relationship);
+								$accessPolicy = $apiAccessPolicy === false ? $accessPolicy : $apiAccessPolicy;
+							}
+							if($accessPolicy !== null && !count(array_intersect($referenceRelationship, $accessPolicy)) || in_array("blocked", $referenceRelationship))
+								continue;
+						
+							// Security: Check Field Reference Policy
+							$referencePolicy = $field->reference;
+							if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "reference")){
+								$apiReferencePolicy = call_user_func($GLOBALS["resty"]->{$subject}->reference, $id, $item, $attachments, $name, $relationship);
+								$referencePolicy = $apiReferencePolicy === false ? $referencePolicy : $apiReferencePolicy;
+							}
+							if($referencePolicy !== null && !count(array_intersect($referenceRelationship, $referencePolicy)) || in_array("blocked", $referenceRelationship))
+								continue;
+
+							$setValue = $item->{$name};
+						}
+					}
+					else if($field->class == "file")
+						$setValue = property_exists($attachments, $name) ? $attachments->{$name}->extension : null;
+				
+					// Duplicate check
+					if($field->unique)
+						if($GLOBALS["db"]->query("SELECT COUNT(*) FROM `" . $schema->name
+							. "` WHERE `" . $name . "` = " . $GLOBALS["db"]->quote($setValue)
+							. ($id !== null ? " AND `" . $schema->id . "` <> " . $GLOBALS["db"]->quote($id) : ""))->fetch(PDO::FETCH_COLUMN, 0) > 0)
+							$duplicates[] = $name;
+
+					$setSql .= ($setSql != "" ? ", " : "") . "`" . $name . "` = " . ($setValue === null ? "NULL" : $GLOBALS["db"]->quote($setValue));
+				}
 			
 		if(count($duplicates) > 0){
 			header("HTTP/1.1 409 Conflict");
