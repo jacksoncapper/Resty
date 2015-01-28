@@ -432,9 +432,14 @@
 						continue;
 				}
 				
+				// Default null
+				if($field->class == "value" || $field->class == "out-reference")
+					if($field->nullable && $item->{$name} == "")
+						$item->{$name} = null;
+				
 				$setValue = null;
 				if($field->class == "value")
-					$setValue = $field->nullable && $item->{$name} == "" ? null : $item->{$name};
+					$setValue = $item->{$name};
 				else if($field->class == "out-reference"){
 					if(is_object($item->{$name})){
 						$setValue = applyItem($field->referenceSubject, null, $item->{$name});
