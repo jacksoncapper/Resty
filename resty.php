@@ -343,7 +343,7 @@
 				$whereSql .= " AND `" . $schema->id . "` <> " . $GLOBALS["db"]->quote($itemSql[$schema->id]);
 		}
 
-		$count = $GLOBALS["db"]->query("SELECT COUNT(*) FROM `" . $subject . "` WHERE TRUE" . $whereSql)->fetch(PDO::FETCH_COLUMN, 0);
+		$count = intval($GLOBALS["db"]->query("SELECT COUNT(*) FROM `" . $subject . "` WHERE TRUE" . $whereSql)->fetch(PDO::FETCH_COLUMN, 0));
 		$items->count = $count;
 		if(property_exists($options, "lmt"))
 			$items->pageCount = ceil($count / $options->lmt);
