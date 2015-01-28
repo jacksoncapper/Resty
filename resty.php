@@ -293,7 +293,7 @@
 				if(property_exists($options, "gte:" . $name))
 					$whereSql .= " AND `" . $name . "` " . ($options->{"gte:" . $name} == "" ? "IS NULL" : " >= " . $GLOBALS["db"]->quote($options->{"gte:" . $name}));
 				if(property_exists($options, "isn:" . $name))
-					$whereSql .= " AND `" . $name . "` " . ($options->{"isn:" . $name} == "" ? "IS NULL" : " <> " . $GLOBALS["db"]->quote($options->{"isn:" . $name}));
+					$whereSql .= " AND `" . $name . "` " . ($options->{"isn:" . $name} == "" ? "IS NOT NULL" : " <> " . $GLOBALS["db"]->quote($options->{"isn:" . $name}));
 			}
 		if(property_exists($options, "rgx") && $options->rgx != ""){
 			$whereSql .= " AND (FALSE";
