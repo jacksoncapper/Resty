@@ -458,7 +458,7 @@
 							$accessPolicy = $apiAccessPolicy === false ? $accessPolicy : $apiAccessPolicy;
 						}
 						if($accessPolicy !== null && !count(array_intersect($referenceRelationship, $accessPolicy)) || in_array("blocked", $referenceRelationship))
-							return null;
+							continue;
 						
 						// Security: Check Field Reference Policy
 						$referencePolicy = $field->reference;
