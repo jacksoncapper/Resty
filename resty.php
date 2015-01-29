@@ -384,6 +384,13 @@
 				return null;
 		}
 		
+		// Default empty strings to nulls
+		foreach($schema->fields as $name => $field)
+			if(property_exists($item, $name) || property_exists($attachments, $name))
+				if($field->class == "value" || $field->class == "out-reference")
+					if($field->nullable && $item->{$name} == "")
+						$item->{$name} = null;
+		
 		// Apply
 		if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$subject}, "apply"))
 			return call_user_func($GLOBALS["resty"]->{$subject}->apply, $id, $item, $attachments);
@@ -432,11 +439,6 @@
 						if($setPolicy !== null && !count(array_intersect($relationship, $setPolicy)) || in_array("blocked", $relationship))
 							continue;
 					}
-				
-					// Default null
-					if($field->class == "value" || $field->class == "out-reference")
-						if($field->nullable && $item->{$name} == "")
-							$item->{$name} = null;
 				
 					$setValue = null;
 					if($field->class == "value")
