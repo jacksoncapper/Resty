@@ -189,7 +189,7 @@
 		else foreach($schema->fields as $fieldName=> $field)
 			if($field->authority === true){
 				$authorityId = $GLOBALS["db"]->query("SELECT `" . $fieldName . "` FROM `" . $schema->name . "` WHERE `" . $schema->id . "` = " . $GLOBALS["db"]->quote($id))->fetch(PDO::FETCH_COLUMN, 0);
-				if($authorityId !== null){
+				if($authorityId != null){
 					
 					$cacheName = $schema->name . ";" . $fieldName . ";" . $authorityId;
 					if($root && property_exists($GLOBALS["relationshipsCache"], $cacheName))
