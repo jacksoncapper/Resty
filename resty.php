@@ -456,7 +456,7 @@
 
 							// Security: Check Reference Access Policy
 							$accessPolicy = $referenceSchema->access;
-							if(property_exists($GLOBALS["resty"], $subject) && property_exists($GLOBALS["resty"]->{$field->referenceSubject}, "access")){
+							if(property_exists($GLOBALS["resty"], $field->referenceSubject) && property_exists($GLOBALS["resty"]->{$field->referenceSubject}, "access")){
 								$apiAccessPolicy = call_user_func($GLOBALS["resty"]->{$field->referenceSubject}->access, $id, $options, $relationship);
 								$accessPolicy = $apiAccessPolicy === false ? $accessPolicy : $apiAccessPolicy;
 							}
