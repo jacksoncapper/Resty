@@ -204,15 +204,9 @@
 		return $relationship;
 	}
 	function interceptTags($source, $tags, $isolate = false){
-		@$sourceHtml = DOMDocument::loadHTML($isolate ? "<p>" . $source . "</p>" : $source);
-		foreach($tags as $tagName => $tagValue)
-			while($sourceHtml->getElementsByTagName($tagName)->length){
-				$sourceTagXml = $sourceHtml->getElementsByTagName($tagName)->item(0);
-				foreach(DOMDocument::loadHTML("<html><body>" . $tagValue . "</body></html>")->getElementsByTagName("body")->item(0)->childNodes as $childXml)
-					$sourceTagXml->parentNode->insertBefore($sourceHtml->importNode($childXml, true), $sourceTagXml);
-				$sourceTagXml->parentNode->removeChild($sourceTagXml);
-			}
-		return $isolate ? $sourceHtml->getElementsByTagName("p")->item(0)->nodeValue : $sourceHtml->saveHTML();
+		foreach($tags as $tagName=> $tagValue)
+			$source = str_replace("<" . $tagName . "/>", $tagValue, $source);
+		return $source;
 	}
 	function generateID($length){
 		return substr(md5($_SERVER["SERVER_ADDR"] . uniqid()), 0, $length);
@@ -909,35 +903,37 @@
 	// Subject
 	else if(array_key_exists("__subject", $_GET)){
 		if($_SERVER["REQUEST_METHOD"] == "POST" || $_SERVER["REQUEST_METHOD"] == "PUT"){
-			if($_GET["__subject"] == "_lost" && property_exists($resty, "_email") && property_exists($resty->_email, "lost")){
+			if($_GET["__subject"] == "_lost" && property_exists($resty, "_lost")){
 				$usersSchema = getSchema($resty->_users);
 				if(array_key_exists("email", $_GET))
 					$whereSql .= " AND `" . $usersSchema->email . "` = " . $GLOBALS["db"]->quote($_GET["email"]);
 				else if(array_key_exists("username", $_GET))
-					$whereSql .= " AND `" . $usersSchema->email . "` = " . $GLOBALS["db"]->quote($_GET["username"]);
+					$whereSql .= " AND `" . $usersSchema->username . "` = " . $GLOBALS["db"]->quote($_GET["username"]);
 				else if(array_key_exists("username-email", $_GET)){
 					$whereSql .= " AND (`" . $usersSchema->email . "` = " . $GLOBALS["db"]->quote($_GET["username-email"]);
 					$whereSql .= " OR `" . $usersSchema->username . "` = " . $GLOBALS["db"]->quote($_GET["username-email"]) . ")";
 				}
-				else if(array_key_exists("is:email", $_GET))
-					$whereSql .= " AND `" . $usersSchema->email . "` = " . $GLOBALS["db"]->quote($_GET["is:email"]);
-				else if(array_key_exists("is:username", $_GET))
-					$whereSql .= " AND `" . $usersSchema->username . "` = " . $GLOBALS["db"]->quote($_GET["is:username"]);
+				else{
+					header("HTTP/1.1 404 Not Found");
+					header("Content-Type: text/plain");
+					exit;
+				}
 				$userSql = $GLOBALS["db"]->query("SELECT * FROM `" . $usersSchema->name . "` WHERE 1=1" . $whereSql)->fetch();
 				if($userSql !== false){
 					$id = $userSql[$usersSchema->id];
 					$email = $userSql[$usersSchema->email];
-					$subject = interceptTags($resty->_email->lost->subject, (object)$userSql, true);
-					$tempPasscode = generateID(5);
-					$encryptedTempPasscode = $usersSchema->fields->{$usersSchema->passcode}->encrypt ? md5($tempPasscode . $id) : $tempPasscode;
-					$GLOBALS["db"]->exec("UPDATE `" . $usersSchema->name . "` SET `" . $usersSchema->passcode . "` = " . $GLOBALS["db"]->quote($encryptedTempPasscode) . " WHERE `" . $usersSchema->id . "` = " . $GLOBALS["db"]->quote($id));
+					$subject = interceptTags($resty->_lost->{"confirm-subject"}, (object)$userSql, true);
 					
-					$bodyHtml = property_exists($resty->_email->lost, "body-html") ? interceptTags(file_get_contents($resty->_email->lost->{"body-html"}), (object)array_merge(array( "temppasscode"=> $tempPasscode ), $userSql)) : null;
-					$bodyText = property_exists($resty->_email->lost, "body-text") ? interceptTags(file_get_contents($resty->_email->lost->{"body-text"}), (object)array_merge(array( "temppasscode"=> $tempPasscode ), $userSql)) : null;
+					$special = array(
+						"ip"=> $_SERVER["REMOTE_ADDR"],
+						"url"=> $GLOBALS["url"] . "/_reset?user=" . urlencode($id) . "&auth=" . urlencode($userSql[$usersSchema->passcode])
+					);
+					$bodyHtml = property_exists($resty->_lost, "confirm-html") ? interceptTags(file_get_contents($resty->_lost->{"confirm-html"}), (object)array_merge($special, $userSql)) : null;
+					$bodyText = property_exists($resty->_lost, "confirm-text") ? interceptTags(file_get_contents($resty->_lost->{"confirm-text"}), (object)array_merge($special, $userSql)) : null;
 					
 					$boundary = uniqid("np");
 					$headers = "MIME-Version: 1.0\r\n";
-					$headers .= "From: " . $resty->_email->{"from-name"} . "<" . $resty->_email->{"from-email"} . ">\r\n";
+					$headers .= "From: " . $resty->_lost->{"from-name"} . "<" . $resty->_lost->{"from-email"} . ">\r\n";
 					$headers .= "Content-Type: multipart/alternative;boundary=" . $boundary . "\r\n";
 					$body = "";
 					if($bodyText !== null){
@@ -951,26 +947,12 @@
 						$body .= $bodyHtml;
 					}
 					$body .= "\r\n\r\n--" . $boundary . "--";
-					mail($email, $subject, $body, $headers, "-f" . $resty->_email->{"from-email"});
+					mail($email, $subject, $body, $headers, "-f" . $resty->_lost->{"from-email"});
 				}
 				else{
 					header("HTTP/1.1 404 Not Found");
 					header("Content-Type: text/plain");
 				}
-			}
-			else if(is_array($post)){
-				$output = array();
-				foreach($post as $item){
-					// Virtual apply
-					if(property_exists($GLOBALS["resty"], $_GET["__subject"]) && property_exists($GLOBALS["resty"]->{$_GET["__subject"]}, "apply"))
-						$id = call_user_func($GLOBALS["resty"]->{$_GET["__subject"]}->apply, null, $item, $files);
-					else
-						$id = applyItem($_GET["__subject"], null, $item, $files);
-					$output[] = $GLOBALS["url"] . "/" . $_GET["__subject"] . "/" . $id;
-				}
-				header("HTTP/1.1 200 OK");
-				header("Content-Type: text/json");
-				echo json_encode($output);
 			}
 			else{
 				// Virtual apply
@@ -986,15 +968,65 @@
 			}
 		}
 		else if($_SERVER["REQUEST_METHOD"] == "GET"){
-			// Virtual browse
-			if(property_exists($GLOBALS["resty"], $_GET["__subject"]) && property_exists($GLOBALS["resty"]->{$_GET["__subject"]}, "browse"))
-				$browse = call_user_func($GLOBALS["resty"]->{$_GET["__subject"]}->browse, $get);
-			// Actual browse
-			else
-				$browse = browseSubject($_GET["__subject"], $get);
-			header("HTTP/1.1 200 OK");
-			header("Content-Type: text/json");
-			echo json_encode($browse);
+			if($_GET["__subject"] == "_reset" && property_exists($resty, "_lost")){
+				$usersSchema = getSchema($resty->_users);
+				$userSql = $GLOBALS["db"]->query("SELECT * FROM `" . $usersSchema->name . "`"
+					. " WHERE `" . $usersSchema->id . "` = " . $GLOBALS["db"]->quote($_GET["user"])
+					. " AND `" . $usersSchema->passcode . "` = " . $GLOBALS["db"]->quote($_GET["auth"]))->fetch();
+				if($userSql !== false){
+					$tempPasscode = generateID(5);
+					$encryptedTempPasscode = $usersSchema->fields->{$usersSchema->passcode}->encrypt ? md5($tempPasscode . $id) : $tempPasscode;
+					$GLOBALS["db"]->exec("UPDATE `" . $usersSchema->name . "` SET `" . $usersSchema->passcode . "` = " . $GLOBALS["db"]->quote($encryptedTempPasscode) . " WHERE `" . $usersSchema->id . "` = " . $GLOBALS["db"]->quote($id));
+					
+					$id = $userSql[$usersSchema->id];
+					$email = $userSql[$usersSchema->email];
+					$subject = interceptTags($resty->_lost->{"confirm-subject"}, (object)$userSql, true);	
+					
+					$special = array(
+						"ip"=> $_SERVER["REMOTE_ADDR"],
+						"passcode"=> $tempPasscode
+					);
+					$bodyHtml = property_exists($resty->_lost, "reset-html") ? interceptTags(file_get_contents($resty->_lost->{"reset-html"}), (object)array_merge($userSql, $special)) : null;
+					$bodyText = property_exists($resty->_lost, "reset-text") ? interceptTags(file_get_contents($resty->_lost->{"reset-text"}), (object)array_merge($userSql, $special)) : null;
+					
+					$boundary = uniqid("np");
+					$headers = "MIME-Version: 1.0\r\n";
+					$headers .= "From: " . $resty->_lost->{"from-name"} . "<" . $resty->_lost->{"from-email"} . ">\r\n";
+					$headers .= "Content-Type: multipart/alternative;boundary=" . $boundary . "\r\n";
+					$body = "";
+					if($bodyText !== null){
+						$body .= "\r\n\r\n--" . $boundary . "\r\n";
+						$body .= "Content-type: text/plain;charset=utf-8\r\n\r\n";
+						$body .= $bodyText;
+					}
+					if($bodyHtml !== null){
+						$body .= "\r\n\r\n--" . $boundary . "\r\n";
+						$body .= "Content-type: text/html;charset=utf-8\r\n\r\n";
+						$body .= $bodyHtml;
+					}
+					$body .= "\r\n\r\n--" . $boundary . "--";
+					mail($email, $subject, $body, $headers, "-f" . $resty->_lost->{"from-email"});
+					
+					header("HTTP/1.1 200 OK");
+					header("Content-Type: text/html");
+					echo($bodyHtml);
+				}
+				else{
+					header("HTTP/1.1 404 Not Found");
+					header("Content-Type: text/plain");
+				}
+			}
+			else{
+				// Virtual browse
+				if(property_exists($GLOBALS["resty"], $_GET["__subject"]) && property_exists($GLOBALS["resty"]->{$_GET["__subject"]}, "browse"))
+					$browse = call_user_func($GLOBALS["resty"]->{$_GET["__subject"]}->browse, $get);
+				// Actual browse
+				else
+					$browse = browseSubject($_GET["__subject"], $get);
+				header("HTTP/1.1 200 OK");
+				header("Content-Type: text/json");
+				echo json_encode($browse);
+			}
 		}
 	}
 	// Map
