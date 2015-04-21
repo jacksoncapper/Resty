@@ -975,7 +975,7 @@
 					. " AND `" . $usersSchema->passcode . "` = " . $GLOBALS["db"]->quote($_GET["auth"]))->fetch();
 				if($userSql !== false){
 					$tempPasscode = generateID(5);
-					$encryptedTempPasscode = $usersSchema->fields->{$usersSchema->passcode}->encrypt ? md5($tempPasscode . $id) : $tempPasscode;
+					$encryptedTempPasscode = $usersSchema->fields->{$usersSchema->passcode}->encrypt ? md5($tempPasscode . $userSql["id"]) : $tempPasscode;
 					$GLOBALS["db"]->exec("UPDATE `" . $usersSchema->name . "` SET `" . $usersSchema->passcode . "` = " . $GLOBALS["db"]->quote($encryptedTempPasscode) . " WHERE `" . $usersSchema->id . "` = " . $GLOBALS["db"]->quote($userSql["id"]));
 					
 					$id = $userSql[$usersSchema->id];
